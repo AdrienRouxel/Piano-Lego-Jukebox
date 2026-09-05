@@ -28,6 +28,8 @@ export const DEFAULT_SETTINGS = {
   accent: 0.35,
   sensitivity: 0.65,
   direction: 1,
+  /** Rôle du second piano : 'off', 'mirror', 'split' ou 'call'. */
+  duet: 'mirror',
   idleStop: true,
   ledSync: true,
   brakeOnStop: true, // freiner en fin de morceau plutôt que laisser tourner sur l'élan
@@ -44,15 +46,23 @@ export const DEFAULT_SETTINGS = {
  * entretiennent un fond. Le tout est normalisé sur le 90e centile du morceau,
  * pour qu'une pièce douce fasse bouger le piano autant qu'une pièce dense.
  *
+ * Le registre peut être restreint : c'est ce qui permet de confier les graves
+ * à un piano et les aigus à un autre, chacun suivant sa moitié de la partition.
+ * Comme la normalisation se fait après le filtrage, une main gauche discrète
+ * fait quand même bouger son piano — sans quoi le second modèle resterait
+ * immobile les trois quarts du temps.
+ *
  * @param {{notes:Array, duration:number, beats:Array}} midi
+ * @param {{from?:number, to?:number}} [range] bornes de hauteur MIDI, incluses
  */
-export function buildActivityCurve(midi) {
+export function buildActivityCurve(midi, { from = 0, to = 127 } = {}) {
   const duration = Math.max(midi.duration, 0.5);
   const size = Math.ceil(duration / STEP) + 2;
   const onset = new Float32Array(size);
   const sustain = new Float32Array(size);
 
   for (const note of midi.notes) {
+    if (note.midi < from || note.midi > to) continue;
     const index = Math.round(note.time / STEP);
     if (index < 0 || index >= size) continue;
     // Une percussion (canal 10) marque le rythme sans « tenir » de son.
@@ -157,8 +167,21 @@ export class MotionDriver extends EventTarget {
   constructor(hub, settings = {}) {
     super();
     this.hub = hub;
+    /**
+     * Second piano, facultatif. Il n'a pas de pilote à lui : c'est celui-ci
+     * qui lui envoie sa consigne dans le même cycle, à quelques millisecondes
+     * près — deux minuteurs indépendants se décaleraient à l'oreille comme à
+     * l'œil, et deux pianos qui ondulent en léger différé font désordre.
+     */
+    this.follower = null;
+    /** Puissance du second piano au dernier cycle, pour l'affichage. */
+    this.followerPower = 0;
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.curve = null;
+    /** Courbe du second piano — sa moitié de partition, en mode « grave/aigu ». */
+    this.followerCurve = null;
+    /** Numéro de mesure de chaque temps, pour l'alternance question/réponse. */
+    this._barOfBeat = null;
     this.getTime = () => 0;
     this.running = false;
     this.power = 0;
@@ -181,14 +204,37 @@ export class MotionDriver extends EventTarget {
     Object.assign(this.settings, settings);
   }
 
+  /** Branche ou débranche le second piano. */
+  attachFollower(hub) {
+    if (this.follower && this.follower !== hub) this.follower.stopMotor();
+    this.follower = hub ?? null;
+    this.followerPower = 0;
+  }
+
   /**
    * @param {{at:(t:number)=>number, beats?:Array}} curve source d'activité
    * @param {() => number} getTime position de lecture, en secondes
+   * @param {{followerCurve?:object}} [options] courbe propre au second piano
    */
-  start(curve, getTime) {
+  start(curve, getTime, { followerCurve = null } = {}) {
     this.stop();
     this.curve = curve;
+    this.followerCurve = followerCurve;
     this.getTime = getTime;
+
+    // Table temps → mesure, calculée une fois : l'alternance question/réponse
+    // change de piano tous les quatre mesures, pas toutes les N secondes.
+    const beats = curve.beats ?? [];
+    if (beats.length) {
+      this._barOfBeat = new Int32Array(beats.length);
+      let bar = -1;
+      for (let i = 0; i < beats.length; i += 1) {
+        if (beats[i].downbeat) bar += 1;
+        this._barOfBeat[i] = Math.max(0, bar);
+      }
+    } else {
+      this._barOfBeat = null;
+    }
     this.running = true;
     this._beatIndex = 0;
     this._quietSince = performance.now();
@@ -211,9 +257,11 @@ export class MotionDriver extends EventTarget {
     if (this._timer) clearInterval(this._timer);
     this._timer = null;
     this.power = 0;
+    this.followerPower = 0;
     this.activity = 0;
     this.accent = 0;
     this._moving = false;
+    if (this.follower?.connected) this.follower.stopMotor();
 
     // Freinage actif : l'arbre s'arrête net au lieu de finir sur son élan.
     // On ne freine que si le moteur tournait, pour ne pas envoyer de commande
@@ -250,7 +298,9 @@ export class MotionDriver extends EventTarget {
     const accent = this._accentAt(lookAhead);
     activity = Math.min(1.5, activity + accent * this.settings.accent);
 
-    const power = this._toPower(activity);
+    let power = this._toPower(activity);
+    // Question/réponse : chacun son tour, y compris le premier.
+    if (this.settings.duet === 'call' && this.follower?.connected && !this._leaderTurn()) power = 0;
     this.power = power;
     this.activity = activity;
     this.accent = accent;
@@ -260,7 +310,46 @@ export class MotionDriver extends EventTarget {
       this.hub.setMotorPower(power * this.settings.direction);
       this._updateLed(activity);
     }
+    this._driveFollower(lookAhead, power, accent);
     this.dispatchEvent(new CustomEvent('power', { detail: { power, activity } }));
+  }
+
+  /**
+   * Consigne du second piano, dans le même cycle que le premier.
+   *
+   *   miroir           les deux bougent à l'identique — le plus spectaculaire
+   *                    de loin, et ça marche avec n'importe quel morceau ;
+   *   grave / aigu     chacun suit sa moitié de la partition : le piano des
+   *                    graves brasse régulièrement, celui des aigus s'agite
+   *                    sur la mélodie. C'est là qu'on voit deux instruments ;
+   *   question/réponse un piano par bloc de quatre mesures, à tour de rôle.
+   */
+  _driveFollower(lookAhead, leaderPower, accent) {
+    const follower = this.follower;
+    const mode = this.settings.duet;
+    if (!follower?.connected || mode === 'off' || !this.settings.enabled) {
+      this.followerPower = 0;
+      return;
+    }
+
+    let power = leaderPower;
+    if (mode === 'split') {
+      const curve = this.followerCurve ?? this.curve;
+      power = this._toPower(Math.min(1.5, curve.at(lookAhead) + accent * this.settings.accent));
+    } else if (mode === 'call') {
+      // Le second répond quand le premier se tait : c'est tout le principe.
+      power = this._leaderTurn() ? 0 : leaderPower;
+    }
+
+    this.followerPower = power;
+    follower.setMotorPower(power * this.settings.direction);
+  }
+
+  /** Vrai quand c'est au premier piano de parler (blocs de quatre mesures). */
+  _leaderTurn() {
+    if (!this._barOfBeat?.length) return true;
+    const bar = this._barOfBeat[Math.min(this._beatIndex, this._barOfBeat.length - 1)] ?? 0;
+    return Math.floor(bar / 4) % 2 === 0;
   }
 
   _accentAt(time) {

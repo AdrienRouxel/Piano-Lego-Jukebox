@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fiche du stand — Piano LEGO</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖨️</text></svg>" />
+  <style>
+    /* ----------------------------------------------------------------
+       Le chevalet à poser à côté du piano.
+
+       Une page pensée pour le papier avant l'écran : fond blanc, encre
+       noire, aucune image de fond — une imprimante de bureau ne rend pas
+       les aplats sombres, et un chevalet gris sale ne donne envie à
+       personne de sortir son téléphone.
+       ---------------------------------------------------------------- */
+
+    :root {
+      --bleu: #013afb;
+      --encre: #101014;
+      --gris: #5b5f6b;
+      --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #e9eaee;
+      font-family: var(--sans);
+      color: var(--encre);
+    }
+
+    .sheet {
+      width: 148mm;      /* A5 portrait, le format d'un chevalet de table */
+      min-height: 210mm;
+      margin: 0 auto;
+      padding: 16mm 14mm;
+      background: #fff;
+      box-shadow: 0 20px 50px -30px #000;
+      display: flex;
+      flex-direction: column;
+      gap: 8mm;
+    }
+
+    .marque {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--bleu);
+      font-weight: 700;
+    }
+    .marque svg { flex: none; }
+
+    h1 {
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.05;
+      letter-spacing: -.02em;
+    }
+
+    .chapeau {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--gris);
+    }
+
+    .qr-bloc {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .qr {
+      width: 78mm;
+      height: 78mm;
+      padding: 4mm;
+      border: 2px solid var(--encre);
+      border-radius: 4mm;
+    }
+    .qr svg { display: block; width: 100%; height: 100%; }
+
+    .consigne { margin: 0; font-size: 19px; font-weight: 700; }
+    .adresse {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--gris);
+      word-break: break-all;
+      text-align: center;
+    }
+
+    .etapes {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 7px;
+      font-size: 14px;
+    }
+    .etapes li { display: flex; gap: 10px; align-items: baseline; }
+    .etapes b {
+      flex: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--bleu);
+      color: #fff;
+      font-size: 12px;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .pied {
+      margin: 0;
+      padding-top: 6mm;
+      border-top: 1px solid #d5d7dd;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--gris);
+    }
+
+    .barre {
+      max-width: 148mm;
+      margin: 0 auto 16px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+      color: #3a3d47;
+    }
+    .barre button {
+      font: inherit;
+      padding: 9px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--bleu);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .erreur {
+      max-width: 148mm;
+      margin: 0 auto;
+      padding: 18px;
+      border-radius: 10px;
+      background: #fff3f0;
+      border: 1px solid #f0b6a4;
+      color: #7a2d16;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* À l'impression : rien que la feuille. */
+    @page { size: A5; margin: 0; }
+    @media print {
+      body { padding: 0; background: #fff; }
+      .barre { display: none; }
+      .sheet { box-shadow: none; width: auto; min-height: 100vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="barre">
+    <button type="button" id="imprimer">Imprimer</button>
+    <span>Format A5 — à plier en chevalet et poser à côté du piano.</span>
+  </div>
+
+  <p class="erreur" id="erreur" hidden></p>
+
+  <article class="sheet" id="fiche" hidden>
+    <p class="marque">
+      <svg viewBox="0 0 40 24" width="34" height="20" aria-hidden="true"><g fill="currentColor"><rect x="3" y="3" width="4.4" height="18" rx="1"/><rect x="9" y="3" width="4.4" height="18" rx="1"/><rect x="15" y="3" width="4.4" height="18" rx="1"/><rect x="21" y="3" width="4.4" height="18" rx="1"/><rect x="27" y="3" width="4.4" height="18" rx="1"/><rect x="33" y="3" width="4.4" height="18" rx="1"/></g></svg>
+      Epitech · Piano LEGO
+    </p>
+
+    <h1>Choisis la musique que ce piano va jouer</h1>
+
+    <p class="chapeau">
+      C’est un LEGO Ideas Grand Piano 21323. Il n’a ni corde, ni haut-parleur,
+      ni électronique de série : un moteur, du Bluetooth, et du code écrit ici.
+    </p>
+
+    <ol class="etapes">
+      <li><b>1</b><span>Scanne le code avec l’appareil photo de ton téléphone.</span></li>
+      <li><b>2</b><span>Choisis un morceau — ou colle un lien Spotify, Apple&nbsp;Music ou Deezer.</span></li>
+      <li><b>3</b><span>Regarde les touches bouger quand ton tour arrive.</span></li>
+    </ol>
+
+    <div class="qr-bloc">
+      <div class="qr" id="qr"></div>
+      <p class="consigne">Pas besoin du Wi-Fi</p>
+      <p class="adresse" id="adresse"></p>
+    </div>
+
+    <p class="pied" id="pied"></p>
+  </article>
+
+  <script type="module">
+    /**
+     * La fiche se remplit toute seule à partir de l'état du serveur : le code
+     * QR imprimé est forcément celui qui est en service au moment où on lance
+     * l'impression. C'est le seul moyen d'éviter le chevalet périmé qui traîne
+     * sur la table depuis la veille.
+     */
+    import { qrSvg } from './js/qrcode.js';
+
+    const el = (id) => document.getElementById(id);
+    el('imprimer').addEventListener('click', () => window.print());
+
+    try {
+      const response = await fetch('/api/stand');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (!data.remoteUrl) {
+        throw new Error(
+          'La télécommande n’est pas joignable de l’extérieur : il n’y a pas d’adresse à imprimer. ' +
+            'Lance le serveur derrière un nom de domaine, avec PUBLIC_URL, ou avec « npm run stand ».'
+        );
+      }
+
+      el('qr').innerHTML = qrSvg(data.remoteUrl, { margin: 3, label: data.remoteUrl });
+      el('adresse').textContent = data.remoteUrl;
+      el('pied').textContent =
+        `Code du stand : ${data.code} · fiche établie le ${new Date().toLocaleDateString('fr-FR')} ` +
+        'à partir de l’adresse en service. Si le serveur change d’adresse, réimprime cette fiche.';
+      el('fiche').hidden = false;
+    } catch (error) {
+      el('erreur').textContent = error.message;
+      el('erreur').hidden = false;
+    }
+  </script>
+</body>
+</html>

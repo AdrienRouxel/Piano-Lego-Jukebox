@@ -1,0 +1,469 @@
+/**
+ * Télécommande des visiteurs.
+ *
+ * Servie sur `/r`, ouverte depuis un téléphone en scannant le code QR affiché
+ * près du piano. Elle ne touche ni au Bluetooth ni au son : elle dépose une
+ * demande dans la file du serveur, et le jukebox — resté sur l'ordinateur du
+ * stand, seul à parler au piano — la joue quand son tour vient.
+ *
+ *   téléphone (5G) ──POST /api/stand/queue──► serveur ──SSE──► jukebox ──► piano
+ *        ▲                                       │
+ *        └──────────────── SSE ──────────────────┘
+ *
+ * Les visiteurs sont sur leur forfait mobile, pas sur le Wi-Fi du stand : la
+ * page doit être joignable depuis l'extérieur, et rester légère. D'où
+ * l'absence de police, d'image et de dépendance — tout tient en quelques Ko.
+ *
+ * Le code du stand voyage dans l'adresse du code QR (`?c=…`) : c'est lui qui
+ * distingue « quelqu'un devant le piano » de « quelqu'un qui a trouvé
+ * l'adresse ». On le range dès le chargement, car le visiteur peut très bien
+ * recharger la page ensuite sans le paramètre.
+ */
+
+const el = (id) => document.getElementById(id);
+
+const dom = {
+  now: el('now'),
+  nowTitle: el('now-title'),
+  nowArtist: el('now-artist'),
+  nowFill: el('now-fill'),
+  queueBlock: el('queue-block'),
+  queueList: el('queue-list'),
+  queueCount: el('queue-count'),
+  name: el('name'),
+  cheer: el('cheer'),
+  cheerCount: el('cheer-count'),
+  locked: el('locked'),
+  linkForm: el('link-form'),
+  link: el('link'),
+  linkSend: el('link-send'),
+  linkState: el('link-state'),
+  search: el('search'),
+  chips: el('chips'),
+  tracks: el('tracks'),
+  empty: el('empty'),
+  toasts: el('toasts'),
+};
+
+/** Toutes les catégories confondues. */
+const ALL = '__all__';
+
+let library = [];
+let categories = [];
+let category = ALL;
+/** Clés des morceaux déjà dans la file, pour marquer la liste. */
+let queued = new Set();
+
+/**
+ * Code du stand. Il arrive par l'adresse du code QR ; on le garde pour que
+ * recharger la page, ou revenir dessus plus tard, continue de marcher.
+ */
+const standCode = (() => {
+  const KEY = 'lego-piano-jukebox/stand-code';
+  const fromUrl = new URL(window.location.href).searchParams.get('c');
+  try {
+    if (fromUrl) localStorage.setItem(KEY, fromUrl);
+    return fromUrl ?? localStorage.getItem(KEY) ?? '';
+  } catch {
+    return fromUrl ?? '';
+  }
+})();
+
+/** Prénom, retenu d'une visite à l'autre pour ne pas le retaper. */
+const NAME_KEY = 'lego-piano-jukebox/name';
+
+/**
+ * Jeton de ce téléphone. Il ne sert qu'à deux choses : plafonner le nombre de
+ * demandes simultanées d'une même personne, et reconnaître ses propres
+ * demandes dans la file. Il n'identifie personne — c'est un tirage au hasard,
+ * qui ne quitte pas ce navigateur autrement que sous cette forme.
+ */
+const visitor = (() => {
+  const KEY = 'lego-piano-jukebox/visitor';
+  try {
+    const saved = localStorage.getItem(KEY);
+    if (saved) return saved;
+    const fresh = `v${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(KEY, fresh);
+    return fresh;
+  } catch {
+    // Navigation privée : un jeton par chargement de page, c'est déjà ça.
+    return `v${Math.random().toString(36).slice(2, 10)}`;
+  }
+})();
+
+/* ------------------------------------------------------------------ */
+/* Notifications                                                       */
+/* ------------------------------------------------------------------ */
+
+function toast(message, kind = 'info', duration = 3600) {
+  const element = document.createElement('div');
+  element.className = `toast ${kind}`;
+  element.textContent = message;
+  dom.toasts.append(element);
+  setTimeout(() => {
+    element.style.transition = 'opacity .25s';
+    element.style.opacity = '0';
+    setTimeout(() => element.remove(), 280);
+  }, duration);
+}
+
+/* ------------------------------------------------------------------ */
+/* Bibliothèque                                                        */
+/* ------------------------------------------------------------------ */
+
+async function loadLibrary() {
+  try {
+    const response = await fetch('/api/library');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    library = data.tracks ?? [];
+    categories = (data.categories ?? []).filter((entry) => entry.count > 0);
+    renderChips();
+    renderTracks();
+  } catch (error) {
+    dom.empty.hidden = false;
+    dom.empty.textContent = `La bibliothèque est injoignable (${error.message}). Le jukebox est-il allumé ?`;
+  }
+}
+
+function renderChips() {
+  dom.chips.textContent = '';
+  const entries = [[ALL, 'Tout'], ...categories.map((entry) => [entry.name, entry.name])];
+  for (const [value, label] of entries) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.role = 'tab';
+    chip.setAttribute('aria-selected', String(value === category));
+    chip.textContent = label;
+    chip.addEventListener('click', () => {
+      category = value;
+      renderChips();
+      renderTracks();
+    });
+    dom.chips.append(chip);
+  }
+}
+
+function matching() {
+  const query = dom.search.value.trim().toLowerCase();
+  return library.filter((track) => {
+    if (category !== ALL && track.category !== category) return false;
+    if (!query) return true;
+    return `${track.artist ?? ''} ${track.title}`.toLowerCase().includes(query);
+  });
+}
+
+function renderTracks() {
+  const tracks = matching();
+  dom.tracks.textContent = '';
+  dom.empty.hidden = tracks.length > 0;
+  if (!tracks.length) {
+    dom.empty.textContent = library.length
+      ? 'Aucun morceau ne correspond.'
+      : 'La bibliothèque est vide pour le moment.';
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const track of tracks) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'track';
+    button.dataset.id = track.id;
+    button.dataset.queued = queued.has(track.id) ? '1' : '0';
+    button.innerHTML =
+      '<span class="body"><span class="title"></span><span class="artist"></span></span>' +
+      `<span class="go" aria-hidden="true">${queued.has(track.id) ? '✓' : '+'}</span>`;
+    button.querySelector('.title').textContent = track.title;
+    button.querySelector('.artist').textContent = track.artist ?? track.category;
+    button.addEventListener('click', () => request(track, button));
+    fragment.append(button);
+  }
+  dom.tracks.append(fragment);
+}
+
+/* ------------------------------------------------------------------ */
+/* Demande d'un morceau                                                */
+/* ------------------------------------------------------------------ */
+
+async function request(track, button) {
+  if (queued.has(track.id)) {
+    toast('Ce morceau est déjà dans la file.', 'info');
+    return;
+  }
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/stand/queue', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: track.id, by: visitor, code: standCode, name: currentName() }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 403) lockOut(data.error);
+      toast(data.error ?? 'La demande n’est pas passée.', 'error', 5000);
+      return;
+    }
+    apply(data);
+    const rank = data.position;
+    toast(
+      rank <= 1
+        ? `« ${track.title} » passe juste après le morceau en cours.`
+        : `« ${track.title} » est en file, position ${rank}.`,
+      'success'
+    );
+    // Une petite vibration confirme le geste sur les téléphones qui la gèrent.
+    navigator.vibrate?.(18);
+  } catch {
+    toast('Connexion perdue. Reste sur le Wi-Fi du stand et réessaie.', 'error', 5000);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* État partagé                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Décompte de la pause de service.
+ *
+ * Le serveur envoie des secondes restantes, pas une heure d'arrivée : l'horloge
+ * d'un téléphone et celle de l'ordinateur du stand ne sont jamais tout à fait
+ * les mêmes. On repart donc de la valeur reçue et on décompte ici, quitte à se
+ * recaler à chaque message — il en arrive un toutes les deux secondes.
+ */
+let restEndsAt = 0;
+let restTimer = null;
+
+function tickRest() {
+  const remaining = Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000));
+  if (remaining <= 0) {
+    clearInterval(restTimer);
+    restTimer = null;
+    dom.now.dataset.rest = '0';
+    return;
+  }
+  dom.nowTitle.textContent = 'Le piano souffle un instant';
+  dom.nowArtist.textContent = `Le moteur refroidit — reprise dans ${remaining} s`;
+  dom.nowFill.style.width = '100%';
+}
+
+function showRest(seconds) {
+  restEndsAt = Date.now() + seconds * 1000;
+  dom.now.dataset.rest = '1';
+  dom.now.dataset.state = 'paused';
+  tickRest();
+  restTimer ??= setInterval(tickRest, 1000);
+}
+
+/** Applique un instantané reçu du serveur : ce qui joue, et la file. */
+function apply(state) {
+  const now = state.now;
+
+  // Une pause de service prend le pas sur le morceau : c'est la seule chose
+  // qu'un visiteur devant un piano muet a besoin de lire.
+  if (now?.rest > 0) {
+    showRest(now.rest);
+    applyQueue(state);
+    return;
+  }
+  if (restTimer) {
+    clearInterval(restTimer);
+    restTimer = null;
+  }
+  restEndsAt = 0;
+  dom.now.dataset.rest = '0';
+
+  dom.now.dataset.state = now?.state ?? 'paused';
+  dom.nowTitle.textContent = now?.title ?? 'Le jukebox n’a pas encore démarré';
+  dom.nowArtist.textContent = now?.artist ?? '';
+  const progress = now?.duration ? Math.min(100, (now.position / now.duration) * 100) : 0;
+  dom.nowFill.style.width = `${progress}%`;
+
+  applyQueue(state);
+}
+
+/** La file et le compteur d'applaudissements, communs aux deux cas. */
+function applyQueue(state) {
+  dom.cheerCount.textContent = state.cheers ? String(state.cheers) : '';
+
+  const queue = state.queue ?? [];
+  queued = new Set(queue.map((entry) => entry.id));
+
+  dom.queueBlock.hidden = queue.length === 0;
+  dom.queueCount.textContent = queue.length ? `· ${queue.length}` : '';
+  dom.queueList.textContent = '';
+  queue.forEach((entry, index) => {
+    const item = document.createElement('li');
+    item.dataset.mine = entry.by === visitor ? '1' : '0';
+    item.innerHTML = '<span class="rank"></span><span class="label"><b></b><small></small></span>';
+    item.querySelector('.rank').textContent = String(index + 1);
+    item.querySelector('b').textContent = entry.title;
+    const origin = entry.by === visitor ? 'ta demande' : entry.name ? `demandé par ${entry.name}` : null;
+    item.querySelector('small').textContent = [entry.artist ?? entry.category, origin].filter(Boolean).join(' · ');
+    dom.queueList.append(item);
+  });
+
+  // Les pastilles « déjà demandé » de la liste doivent suivre.
+  for (const button of dom.tracks.querySelectorAll('.track')) {
+    const inQueue = queued.has(button.dataset.id);
+    button.dataset.queued = inQueue ? '1' : '0';
+    button.querySelector('.go').textContent = inQueue ? '✓' : '+';
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Envoi d'un lien de plateforme                                       */
+/* ------------------------------------------------------------------ */
+
+function sayLink(message, kind = 'info') {
+  dom.linkState.hidden = !message;
+  dom.linkState.dataset.kind = kind;
+  dom.linkState.textContent = message ?? '';
+}
+
+/**
+ * Le serveur fait tout le travail lourd : reconnaître la plateforme, retrouver
+ * le titre, récupérer l'extrait officiel de trente secondes, l'écrire à côté
+ * des autres morceaux. La transcription en partition, elle, se fera sur
+ * l'ordinateur du stand pendant que la musique continue.
+ *
+ * Ici, on se contente d'attendre poliment : la résolution du lien passe par
+ * deux ou trois requêtes vers l'extérieur, ce n'est pas instantané.
+ */
+async function sendLink(event) {
+  event.preventDefault();
+  const value = dom.link.value.trim();
+  if (!value) return;
+
+  dom.linkSend.disabled = true;
+  sayLink('On cherche ce morceau', 'working');
+  try {
+    const response = await fetch('/api/stand/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ link: value, by: visitor, code: standCode, name: currentName() }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 403) lockOut(data.error);
+      sayLink(data.error ?? 'La demande n’est pas passée.', 'error');
+      return;
+    }
+    apply(data);
+    const found = data.resolved ?? {};
+    sayLink(
+      `« ${found.title} »${found.artist ? ` de ${found.artist}` : ''} est en file — extrait officiel de 30 s (${found.source}).`,
+      'success'
+    );
+    dom.link.value = '';
+    navigator.vibrate?.(18);
+  } catch {
+    sayLink('Connexion perdue. Réessaie dans un instant.', 'error');
+  } finally {
+    dom.linkSend.disabled = false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Prénom                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Le prénom est facultatif et n'est pas une identité : il s'affiche sur
+ * l'écran du stand pendant le morceau, puis disparaît. Le serveur le filtre
+ * à son tour — ici on se contente de ne pas envoyer n'importe quoi.
+ */
+function currentName() {
+  const value = dom.name.value.replace(/[^\p{L}\p{M}\s'’-]/gu, '').trim().slice(0, 14);
+  return value.length >= 2 ? value : null;
+}
+
+function restoreName() {
+  try {
+    dom.name.value = localStorage.getItem(NAME_KEY) ?? '';
+  } catch { /* navigation privée */ }
+  dom.name.addEventListener('change', () => {
+    try {
+      localStorage.setItem(NAME_KEY, dom.name.value);
+    } catch { /* tant pis */ }
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Applaudissements                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Un applaudissement fait clignoter la LED du hub, à l'autre bout de la
+ * chaîne. C'est la démonstration la plus courte du projet : un doigt sur un
+ * téléphone en 5G, et une diode s'allume dans un piano en briques.
+ */
+async function cheer() {
+  dom.cheer.disabled = true;
+  navigator.vibrate?.(12);
+  try {
+    const response = await fetch('/api/stand/cheer', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ by: visitor, code: standCode }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 403) lockOut(data.error);
+      else if (response.status === 429) toast('Doucement sur les applaudissements !', 'info');
+      return;
+    }
+  } catch { /* réseau capricieux : l'applaudissement suivant repartira */ } finally {
+    // Un court verrou évite le martèlement, sans casser l'élan.
+    setTimeout(() => { dom.cheer.disabled = false; }, 700);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* État partagé                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Le code du stand ne passe pas : on le dit clairement plutôt que d'échouer. */
+function lockOut(message) {
+  dom.locked.hidden = false;
+  dom.locked.textContent = message ?? 'Rescanne le code QR affiché près du piano.';
+}
+
+/**
+ * Flux d'événements. `EventSource` se reconnecte tout seul quand le réseau
+ * mobile hoquette ou que le téléphone se met en veille : c'est précisément
+ * pourquoi on l'a préféré à un WebSocket ici.
+ */
+function listen() {
+  const source = new EventSource('/api/stand/events');
+  source.addEventListener('state', (event) => {
+    try {
+      apply(JSON.parse(event.data));
+    } catch { /* trame incomplète : la suivante arrive vite */ }
+  });
+  source.addEventListener('cheer', (event) => {
+    try {
+      const { total } = JSON.parse(event.data);
+      dom.cheerCount.textContent = total ? String(total) : '';
+      dom.cheer.dataset.pulse = '1';
+      setTimeout(() => { delete dom.cheer.dataset.pulse; }, 420);
+    } catch { /* trame incomplète */ }
+  });
+}
+
+/* ------------------------------------------------------------------ */
+
+if (!standCode) {
+  lockOut('Ouvre cette page en scannant le code QR affiché près du piano : c’est lui qui porte le code du stand.');
+}
+
+dom.search.addEventListener('input', renderTracks);
+dom.cheer.addEventListener('click', cheer);
+dom.linkForm.addEventListener('submit', sendLink);
+restoreName();
+loadLibrary();
+listen();

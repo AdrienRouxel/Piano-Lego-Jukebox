@@ -1,5 +1,5 @@
 /**
- * Le répertoire classique du jukebox : vingt pièces du domaine public.
+ * Le répertoire classique du jukebox : quatorze pièces du domaine public.
  *
  * Ce sont des **arrangements simplifiés**, écrits ici note à note pour ce
  * projet : mélodie et accompagnement, sur une trentaine de mesures, dans une
@@ -94,44 +94,7 @@ function bachMenuet() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 3. Johann Pachelbel — Canon en ré majeur                          */
-/* ---------------------------------------------------------------- */
-
-function pachelbelCanon() {
-  const score = new Score('Canon en ré majeur', 64);
-  // La basse obstinée : huit notes de deux temps, soit quatre mesures.
-  const ground = ['D3', 'A2', 'B2', 'F#2', 'G2', 'D2', 'G2', 'A2'];
-  const chords = [
-    ['F#4', 'A4', 'D5'], ['E4', 'A4', 'C#5'], ['D4', 'F#4', 'B4'], ['C#4', 'F#4', 'A4'],
-    ['D4', 'G4', 'B4'], ['D4', 'F#4', 'A4'], ['D4', 'G4', 'B4'], ['C#4', 'E4', 'A4'],
-  ];
-
-  const CYCLES = 4;
-  for (let cycle = 0; cycle < CYCLES; cycle += 1) {
-    const base = cycle * 16;
-    ground.forEach((bass, i) => score.add(bass, base + i * 2, 1.9, 0.5));
-    chords.forEach((chord, i) => score.add(chord, base + i * 2, 1.9, 0.3));
-  }
-
-  // 2e cycle : la première ligne du violon, en noires.
-  score.sequence(['F#5', 'E5', 'D5', 'C#5', 'B4', 'A4', 'B4', 'C#5'], 16, 2, 0.72);
-  // 3e cycle : la deuxième ligne, un degré plus bas.
-  score.sequence(['D5', 'C#5', 'B4', 'A4', 'G4', 'F#4', 'G4', 'E4'], 32, 2, 0.72);
-  // 4e cycle : la variation en croches, celle que tout le monde reconnaît.
-  const eighths = [
-    'D5', 'F#5', 'A5', 'G5', 'F#5', 'D5', 'F#5', 'E5',
-    'D5', 'B4', 'D5', 'A4', 'G4', 'B4', 'A4', 'G4',
-    'F#4', 'D4', 'E4', 'C#4', 'D4', 'A4', 'F#4', 'A4',
-    'G4', 'B4', 'A4', 'G4', 'F#4', 'D4', 'E4', 'C#4',
-  ];
-  score.sequence(eighths, 48, 0.5, 0.7);
-
-  score.add(['D2', 'A2', 'D4', 'F#4', 'A4'], CYCLES * 16, 6, 0.55);
-  return score;
-}
-
-/* ---------------------------------------------------------------- */
-/* 4. Antonio Vivaldi — Le Printemps (Les Quatre Saisons)            */
+/* 3. Antonio Vivaldi — Le Printemps (Les Quatre Saisons)            */
 /* ---------------------------------------------------------------- */
 
 function vivaldiPrintemps() {
@@ -169,7 +132,7 @@ function vivaldiPrintemps() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 5. W. A. Mozart — Sonate facile K. 545, 1er mouvement             */
+/* 4. W. A. Mozart — Sonate facile K. 545, 1er mouvement             */
 /* ---------------------------------------------------------------- */
 
 function mozartK545() {
@@ -197,86 +160,7 @@ function mozartK545() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 6. W. A. Mozart — Marche turque (Rondo alla turca)                */
-/* ---------------------------------------------------------------- */
-
-function mozartMarcheTurque() {
-  const score = new Score('Marche turque — Rondo alla turca', 112);
-  const S = 0.25;
-  const E = 0.5;
-  // Le thème : quatre doubles croches qui tournent autour d'une note, puis
-  // la note d'arrivée. Quatre fois de suite, chaque fois plus haut.
-  const theme = [
-    ['B4', S], ['A4', S], ['G#4', S], ['A4', S], ['C5', E],
-    ['D5', S], ['C5', S], ['B4', S], ['C5', S], ['E5', E],
-    ['F5', S], ['E5', S], ['D#5', S], ['E5', S], ['B5', E],
-    ['A5', S], ['G#5', S], ['A5', S], ['B5', S], ['C6', E],
-    ['A5', S], ['G#5', S], ['A5', S], ['B5', S], ['A5', E],
-    ['A5', S], ['G#5', S], ['A5', S], ['B5', S], ['A5', E],
-    ['C6', S], ['B5', S], ['A5', S], ['G#5', S], ['A5', 1],
-  ];
-  const cadence = [
-    ['E5', E], ['C5', E], ['B4', E], ['A4', E],
-    ['G#4', E], ['A4', E], ['B4', E], ['C5', E],
-    ['D5', E], ['C5', E], ['B4', E], ['A4', E],
-    ['A4', 2],
-  ];
-
-  let at = score.melody(theme, 0, 0.78);
-  at = score.melody(cadence, at, 0.74);
-  at = score.melody(theme, at, 0.78);
-  at = score.melody(cadence, at, 0.74);
-
-  // Main gauche : accords secs sur les temps, à la manière d'une fanfare.
-  const Am = ['A2', 'C3', 'E3'];
-  const E7 = ['E2', 'G#2', 'D3'];
-  const total = Math.ceil(at);
-  for (let beat = 0; beat < total; beat += 1) {
-    const chord = Math.floor(beat / 2) % 4 === 3 ? E7 : Am;
-    score.add(chord, beat, 0.45, beat % 2 === 0 ? 0.44 : 0.34);
-  }
-  score.add(['A2', 'A3', 'C4', 'E4', 'A4'], at, 3, 0.7);
-  return score;
-}
-
-/* ---------------------------------------------------------------- */
-/* 7. L. van Beethoven — Lettre à Élise, WoO 59                      */
-/* ---------------------------------------------------------------- */
-
-function furElise() {
-  const score = new Score('Lettre à Élise (section A)', 76, [3, 8]);
-  const S = 0.25;
-  const right = [
-    'E5', 'D#5',
-    'E5', 'D#5', 'E5', 'B4', 'D5', 'C5',
-    'A4', null, null, 'C4', 'E4', 'A4',
-    'B4', null, null, 'E4', 'G#4', 'B4',
-    'C5', null, null, 'E4', 'E5', 'D#5',
-    'E5', 'D#5', 'E5', 'B4', 'D5', 'C5',
-    'A4', null, null, 'C4', 'E4', 'A4',
-    'B4', null, null, 'E4', 'C5', 'B4',
-    'A4', null, null, null, null, null,
-  ];
-  right.forEach((pitch, i) => {
-    if (pitch) score.add(pitch, i * S, i === right.length - 6 ? 1.5 : S, 0.72);
-  });
-
-  const left = [
-    [8, ['A2', 'E3', 'A3']],
-    [14, ['E2', 'E3', 'G#3']],
-    [20, ['A2', 'E3', 'A3']],
-    [32, ['A2', 'E3', 'A3']],
-    [38, ['E2', 'E3', 'G#3']],
-    [44, ['A2', 'E3', 'A3']],
-  ];
-  for (const [slot, arpeggio] of left) {
-    arpeggio.forEach((pitch, i) => score.add(pitch, (slot + i * 2) * S, 2 * S, 0.5));
-  }
-  return score;
-}
-
-/* ---------------------------------------------------------------- */
-/* 8. L. van Beethoven — Hymne à la joie (9e symphonie)              */
+/* 5. L. van Beethoven — Hymne à la joie (9e symphonie)              */
 /* ---------------------------------------------------------------- */
 
 function odeToJoy() {
@@ -306,105 +190,7 @@ function odeToJoy() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 9. L. van Beethoven — Sonate au clair de lune, 1er mouvement      */
-/* ---------------------------------------------------------------- */
-
-function clairDeLuneBeethoven() {
-  const score = new Score('Sonate au clair de lune — Adagio sostenuto', 54);
-  const T = 1 / 3; // les triolets qui ne s'arrêtent jamais
-
-  // Chaque mesure : une basse tenue, et quatre triolets d'arpège.
-  const bars = [
-    { bass: ['C#2', 'C#3'], arps: [['G#3', 'C#4', 'E4']] },
-    { bass: ['C#2', 'C#3'], arps: [['G#3', 'C#4', 'E4']] },
-    { bass: ['B1', 'B2'], arps: [['G#3', 'C#4', 'E4'], ['A3', 'C#4', 'E4']] },
-    { bass: ['A1', 'A2'], arps: [['A3', 'C#4', 'E4'], ['A3', 'D4', 'F#4']] },
-    { bass: ['G#1', 'G#2'], arps: [['G#3', 'B#3', 'F#4'], ['G#3', 'C#4', 'E4']] },
-    { bass: ['C#2', 'C#3'], arps: [['G#3', 'C#4', 'E4']] },
-    { bass: ['C#2', 'C#3'], arps: [['G#3', 'C#4', 'E4']] },
-    { bass: ['B1', 'B2'], arps: [['G#3', 'C#4', 'E4'], ['A3', 'C#4', 'E4']] },
-    { bass: ['A1', 'A2'], arps: [['A3', 'C#4', 'E4'], ['A3', 'D4', 'F#4']] },
-    { bass: ['G#1', 'G#2'], arps: [['G#3', 'B#3', 'F#4'], ['G#3', 'C#4', 'D#4']] },
-    { bass: ['C#2', 'C#3'], arps: [['G#3', 'C#4', 'E4']] },
-    { bass: ['C#2', 'C#3'], arps: [['G#3', 'C#4', 'E4']] },
-  ];
-
-  bars.forEach((bar, index) => {
-    const at = index * 4;
-    score.add(bar.bass, at, 3.9, 0.42);
-    for (let group = 0; group < 4; group += 1) {
-      const arp = bar.arps[Math.floor((group * bar.arps.length) / 4)];
-      arp.forEach((pitch, i) => score.add(pitch, at + group + i * T, T, 0.34));
-    }
-  });
-
-  // La mélodie, à partir de la 5e mesure : trois notes répétées, long-bref-long.
-  const tune = [
-    [16, [['G#4', 1.5], ['G#4', 0.5], ['G#4', 2]]],
-    [20, [['G#4', 1.5], ['G#4', 0.5], ['G#4', 1], ['G#4', 1]]],
-    [24, [['A4', 1.5], ['A4', 0.5], ['A4', 2]]],
-    [28, [['G#4', 1.5], ['G#4', 0.5], ['E4', 1], ['E4', 1]]],
-    [32, [['G#4', 1.5], ['G#4', 0.5], ['G#4', 2]]],
-    [36, [['G#4', 1.5], ['G#4', 0.5], ['C#5', 2]]],
-    [40, [['B4', 1.5], ['B4', 0.5], ['B4', 2]]],
-    [44, [['C#5', 4]]],
-  ];
-  for (const [at, phrase] of tune) score.melody(phrase, at, 0.7);
-
-  score.add(['C#2', 'C#3', 'G#3', 'C#4', 'E4'], 48, 6, 0.5);
-  return score;
-}
-
-/* ---------------------------------------------------------------- */
-/* 10. Frédéric Chopin — Nocturne op. 9 no 2                         */
-/* ---------------------------------------------------------------- */
-
-function chopinNocturne() {
-  const score = new Score('Nocturne op. 9 no 2', 60, [3, 4]);
-  const S = 0.25;
-
-  const phraseA = [
-    ['Bb4', 2], ['G5', 0.75], ['F5', S],
-    ['Eb5', 1], ['Bb4', 1], ['C5', 0.75], ['Bb4', S],
-    ['Ab4', 2], ['G4', 0.5], ['F4', 0.5],
-    ['G4', 3],
-  ];
-  const phraseB = [
-    ['Bb4', 2], ['Eb5', 0.75], ['D5', S],
-    ['C5', 1], ['Bb4', 1], ['Ab4', 0.5], ['G4', 0.5],
-    ['F4', 1], ['G4', 1], ['Ab4', 1],
-    ['Bb4', 3],
-  ];
-  const phraseC = [
-    ['Eb5', 1.5], ['F5', 0.5], ['G5', 1],
-    ['Ab5', 1], ['G5', 0.5], ['F5', 0.5], ['Eb5', 1],
-    ['D5', 1], ['Eb5', 1], ['F5', 1],
-    ['Eb5', 3],
-  ];
-
-  let at = score.melody(phraseA, 0, 0.72);
-  at = score.melody(phraseB, at, 0.7);
-  at = score.melody(phraseC, at, 0.74);
-  at = score.melody(phraseA, at, 0.68);
-
-  // Main gauche : la basse sur le premier temps, l'accord sur les deux autres.
-  const Eb = [['Eb2'], ['Bb3', 'Eb4', 'G4']];
-  const Bb7 = [['Bb1'], ['Ab3', 'D4', 'F4']];
-  const Ab = [['Ab1'], ['Ab3', 'C4', 'Eb4']];
-  const Cm = [['C2'], ['Eb3', 'G3', 'C4']];
-  const grid = [Eb, Bb7, Eb, Eb, Eb, Bb7, Cm, Ab, Ab, Eb, Bb7, Eb, Eb, Bb7, Eb, Eb];
-  grid.forEach(([bass, chord], bar) => {
-    const t = bar * 3;
-    score.add(bass, t, 0.9, 0.46);
-    score.add(chord, t + 1, 0.9, 0.32);
-    score.add(chord, t + 2, 0.9, 0.32);
-  });
-  score.add(['Eb2', 'Bb3', 'Eb4', 'G4', 'Bb4'], 48, 5, 0.5);
-  return score;
-}
-
-/* ---------------------------------------------------------------- */
-/* 11. Frédéric Chopin — Prélude op. 28 no 4 en mi mineur            */
+/* 6. Frédéric Chopin — Prélude op. 28 no 4 en mi mineur            */
 /* ---------------------------------------------------------------- */
 
 function chopinPreludeMiMineur() {
@@ -441,7 +227,7 @@ function chopinPreludeMiMineur() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 12. Frédéric Chopin — Valse op. 64 no 2 en ut dièse mineur        */
+/* 7. Frédéric Chopin — Valse op. 64 no 2 en ut dièse mineur        */
 /* ---------------------------------------------------------------- */
 
 function chopinValse() {
@@ -482,7 +268,7 @@ function chopinValse() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 13. Johannes Brahms — Berceuse, op. 49 no 4                       */
+/* 8. Johannes Brahms — Berceuse, op. 49 no 4                       */
 /* ---------------------------------------------------------------- */
 
 function brahmsBerceuse() {
@@ -513,7 +299,7 @@ function brahmsBerceuse() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 14. Jacques Offenbach — Le Cancan (Orphée aux Enfers)             */
+/* 9. Jacques Offenbach — Le Cancan (Orphée aux Enfers)             */
 /* ---------------------------------------------------------------- */
 
 function offenbachCancan() {
@@ -557,7 +343,7 @@ function offenbachCancan() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 15. Edvard Grieg — Dans l'antre du roi de la montagne             */
+/* 10. Edvard Grieg — Dans l'antre du roi de la montagne             */
 /* ---------------------------------------------------------------- */
 
 function griegRoiMontagne() {
@@ -598,7 +384,7 @@ function griegRoiMontagne() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 16. Edvard Grieg — Le Matin (Peer Gynt)                           */
+/* 11. Edvard Grieg — Le Matin (Peer Gynt)                           */
 /* ---------------------------------------------------------------- */
 
 function griegLeMatin() {
@@ -636,7 +422,7 @@ function griegLeMatin() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 17. P. I. Tchaïkovski — Danse de la fée Dragée                    */
+/* 12. P. I. Tchaïkovski — Danse de la fée Dragée                    */
 /* ---------------------------------------------------------------- */
 
 function tchaikovskiFeeDragee() {
@@ -678,51 +464,7 @@ function tchaikovskiFeeDragee() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 18. Erik Satie — Gymnopédie no 1                                  */
-/* ---------------------------------------------------------------- */
-
-function satieGymnopedie() {
-  const score = new Score('Gymnopédie no 1', 66, [3, 4]);
-
-  // L'accompagnement : basse grave sur le premier temps, accord suspendu sur
-  // le deuxième. Deux mesures qui se répondent, indéfiniment.
-  const swing = [
-    [['G1'], ['B3', 'D4', 'F#4']],
-    [['D2'], ['F#3', 'A3', 'C#4']],
-  ];
-  const BARS = 24;
-  for (let bar = 0; bar < BARS; bar += 1) {
-    const [bass, chord] = swing[bar % 2];
-    score.add(bass, bar * 3, 0.95, 0.4);
-    score.add(chord, bar * 3 + 1, 1.9, 0.28);
-  }
-
-  // La mélodie entre à la 5e mesure et flotte au-dessus, en valeurs longues.
-  const tune = [
-    ['F#5', 3],
-    ['A5', 1], ['G#5', 1], ['B5', 1],
-    ['A5', 2], ['G#5', 1],
-    ['F#5', 3],
-    ['E5', 1], ['D5', 1], ['C#5', 1],
-    ['D5', 2], ['E5', 1],
-    ['F#5', 2], ['A5', 1],
-    ['G#5', 3],
-    ['B5', 1], ['A5', 1], ['G#5', 1],
-    ['F#5', 2], ['E5', 1],
-    ['D5', 3],
-    ['C#5', 1], ['D5', 1], ['E5', 1],
-    ['F#5', 2], ['G#5', 1],
-    ['A5', 3],
-    ['F#5', 2], ['E5', 1],
-    ['D5', 3],
-  ];
-  score.melody(tune, 12, 0.62);
-  score.add(['G1', 'B3', 'D4', 'F#4'], BARS * 3, 6, 0.36);
-  return score;
-}
-
-/* ---------------------------------------------------------------- */
-/* 19. Erik Satie — Gnossienne no 1                                  */
+/* 13. Erik Satie — Gnossienne no 1                                  */
 /* ---------------------------------------------------------------- */
 
 function satieGnossienne() {
@@ -767,7 +509,7 @@ function satieGnossienne() {
 }
 
 /* ---------------------------------------------------------------- */
-/* 20. Scott Joplin — The Entertainer                                */
+/* 14. Scott Joplin — The Entertainer                                */
 /* ---------------------------------------------------------------- */
 
 function joplinEntertainer() {
@@ -816,14 +558,9 @@ function joplinEntertainer() {
 export const CLASSIQUE = [
   ['Johann Sebastian Bach - Prélude en ut majeur BWV 846', bachPrelude],
   ['Johann Sebastian Bach - Menuet en sol majeur BWV Anh 114', bachMenuet],
-  ['Johann Pachelbel - Canon en ré majeur', pachelbelCanon],
   ['Antonio Vivaldi - Le Printemps', vivaldiPrintemps],
   ['Wolfgang Amadeus Mozart - Sonate facile K 545', mozartK545],
-  ['Wolfgang Amadeus Mozart - Marche turque', mozartMarcheTurque],
-  ['Ludwig van Beethoven - Lettre à Élise', furElise],
   ['Ludwig van Beethoven - Hymne à la joie', odeToJoy],
-  ['Ludwig van Beethoven - Sonate au clair de lune', clairDeLuneBeethoven],
-  ['Frédéric Chopin - Nocturne op 9 no 2', chopinNocturne],
   ['Frédéric Chopin - Prélude op 28 no 4', chopinPreludeMiMineur],
   ['Frédéric Chopin - Valse op 64 no 2', chopinValse],
   ['Johannes Brahms - Berceuse', brahmsBerceuse],
@@ -831,7 +568,6 @@ export const CLASSIQUE = [
   ['Edvard Grieg - Dans l’antre du roi de la montagne', griegRoiMontagne],
   ['Edvard Grieg - Le Matin', griegLeMatin],
   ['Piotr Ilitch Tchaïkovski - Danse de la fée Dragée', tchaikovskiFeeDragee],
-  ['Erik Satie - Gymnopédie no 1', satieGymnopedie],
   ['Erik Satie - Gnossienne no 1', satieGnossienne],
   ['Scott Joplin - The Entertainer', joplinEntertainer],
 ];

@@ -12,7 +12,7 @@ visite à l'autre.
 
 ```
 tracks/
-├── Classique/     20 pièces du domaine public
+├── Classique/     14 pièces du domaine public
 ├── Moderne/       10 pièces originales
 ├── Gaming/        vide — à toi de la remplir
 ├── Réglage/       la piste de calibration du moteur
@@ -68,15 +68,15 @@ homonyme sans qu'ils se confondent.
 
 ## La bibliothèque de départ
 
-Au premier lancement, si ce dossier est vide, 31 morceaux y sont écrits — tous
+Au premier lancement, si ce dossier est vide, 25 morceaux y sont écrits — tous
 générés localement à partir des partitions codées dans `scripts/scores/`, rien
 n'est téléchargé.
 
-- **Classique** (20) — Bach, Pachelbel, Vivaldi, Mozart, Beethoven, Chopin,
-  Brahms, Offenbach, Grieg, Tchaïkovski, Satie, Joplin. Œuvres du domaine
-  public, en **arrangement simplifié** : mélodie et accompagnement sur une
-  trentaine de mesures, dans une tessiture lisible sur les 25 touches du
-  modèle. Ce ne sont pas les partitions intégrales.
+- **Classique** (14) — Bach, Vivaldi, Mozart, Beethoven, Chopin, Brahms,
+  Offenbach, Grieg, Tchaïkovski, Satie, Joplin. Œuvres du domaine public, en
+  **arrangement simplifié** : mélodie et accompagnement sur une trentaine de
+  mesures, dans une tessiture lisible sur les 25 touches du modèle. Ce ne sont
+  pas les partitions intégrales.
 - **Moderne** (10) — des pièces **originales**, écrites pour ce projet dans les
   esthétiques du piano des cinq dernières années : lo-fi, piano minimaliste,
   synthwave, amapiano, drill, phonk, dance-pop, ballade, house, générique.

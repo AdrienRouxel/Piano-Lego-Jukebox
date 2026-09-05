@@ -5,7 +5,7 @@
  * Rien n'est téléchargé : chaque partition est écrite note à note dans
  * `scripts/scores/`, puis rendue ici en fichiers MIDI standard.
  *
- *   tracks/Classique/   vingt pièces du domaine public, en arrangement simplifié
+ *   tracks/Classique/   quatorze pièces du domaine public, en arrangement simplifié
  *   tracks/Moderne/     dix pièces originales, dans les esthétiques actuelles
  *   tracks/Gaming/      vide — à toi de la remplir
  *   tracks/Réglage/     la piste de calibration du moteur

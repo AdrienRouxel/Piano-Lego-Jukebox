@@ -354,6 +354,33 @@ code {
 }
 .badge.accent { color: var(--accent); border-color: var(--accent-line); }
 
+/* Choisir ce qu'on entend d'un morceau qui a les deux : la partition
+   transcrite (par défaut) ou l'enregistrement d'origine. */
+.source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.source-toggle:hover { color: var(--ink); background: var(--hover); }
+.source-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.source-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+/* Une règle d'auteur sur `display` prend le pas sur `[hidden]` du navigateur. */
+.source-toggle[hidden] { display: none; }
+
 /* --- Visualisations ------------------------------------------------ */
 
 .viz-block { display: grid; gap: 8px; }
@@ -497,6 +524,37 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .library-tools input::placeholder { color: var(--ink-3); }
 .library-tools input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* Les trois outils de la bibliothèque tiennent en un emoji : le texte
+   mangeait la place du champ de filtre dès qu'on descendait sous ~500 px.
+   Le sens reste porté par `aria-label` et `title`. */
+.btn-emoji {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  font-size: 16px;
+  line-height: 1;
+}
+.btn-emoji span { display: block; }
+
+/* Le champ « coller un lien », replié tant qu'on ne le demande pas. */
+.library-link { display: flex; gap: 8px; }
+/* Une règle d'auteur sur `display` prend le pas sur `[hidden]` du navigateur. */
+.library-link[hidden] { display: none; }
+.library-link input {
+  flex: 1;
+  min-width: 0;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.library-link input::placeholder { color: var(--ink-3); }
+.library-link input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.library-link-state { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.library-link-state[data-kind="error"] { color: var(--err); }
+.library-link-state[data-kind="success"] { color: var(--ok); }
+
 .track-list {
   margin: 0;
   padding: 0;
@@ -610,6 +668,34 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   width: 100%;
   background: none;
 }
+/* Un morceau demandé s'accompagne de sa croix : le bouton ne peut pas vivre
+   dans `.track`, qui est lui-même un bouton. Il vit donc à côté, dans le `li`. */
+.track-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.track-remove {
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 6px;
+  margin-right: 4px;
+  border-radius: 7px;
+  line-height: 0;
+  opacity: 0;
+  transition: opacity .15s, color .15s, background .15s;
+}
+/* Discrète tant qu'on ne la cherche pas, mais toujours atteignable au clavier
+   — et visible en permanence là où il n'y a pas de survol. */
+.track-line:hover .track-remove,
+.track-remove:focus-visible { opacity: 1; }
+.track-remove:hover { color: var(--err); background: var(--hover); }
+@media (hover: none) {
+  .track-remove { opacity: 1; }
+}
+
 .track:hover { background: var(--hover); border-color: var(--line-soft); }
 .track[aria-current="true"] {
   background: var(--accent-wash);
@@ -749,6 +835,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 .switch { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
 .switch input { accent-color: var(--accent); width: 16px; height: 16px; }
+.switch small { display: block; font-size: 12px; color: var(--ink-3); font-weight: 400; }
+/* Un interrupteur que le serveur n'accepterait pas : visible, mais rendu inerte. */
+.switch[data-locked="1"] { opacity: .55; cursor: default; }
+.switch[data-locked="1"] input { cursor: default; }
 
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -2138,3 +2228,675 @@ body.geek-screen {
 [data-theme="lego"] .key[data-on="1"].black {
   background: linear-gradient(180deg, var(--brick), color-mix(in srgb, var(--brick) 58%, #05131d));
 }
+
+/* ---------------------------------------------------------------- */
+/* Journée portes ouvertes — panneau du stand                        */
+/* ---------------------------------------------------------------- */
+
+/* Boutons secondaires du transport : aléatoire, répétition. */
+.btn-round.btn-small { width: 34px; height: 34px; color: var(--ink-3); }
+.btn-round.btn-small:hover { color: var(--ink); }
+.btn-round.btn-small[aria-pressed="true"],
+/* La répétition n'a pas d'état pressé : c'est son mode qui l'allume. */
+#btn-repeat:not([data-mode="off"]) {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+/* Le « 1 » de la répétition d'un seul morceau, en pastille sur l'icône. */
+.btn-round#btn-repeat { position: relative; }
+.repeat-one {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+#btn-repeat:not([data-mode="one"]) .repeat-one { display: none; }
+
+/* --- Clavier jouable ------------------------------------------------ */
+
+.viz-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-3);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.viz-toggle:hover { color: var(--ink-2); background: var(--hover); }
+.viz-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+
+.keyboard[data-playable="1"] { cursor: pointer; touch-action: none; }
+.keyboard[data-playable="1"] .key { transition: filter .06s; }
+.keyboard[data-playable="1"]:hover { border-color: var(--accent-line); }
+
+.playable-hint { margin: 0; font-size: 12px; color: var(--ink-3); line-height: 1.7; }
+.playable-hint kbd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  margin: 0 1px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--field);
+  color: var(--ink-2);
+}
+
+/* --- Le panneau lui-même -------------------------------------------- */
+
+.stand {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--sunken);
+}
+@media (min-width: 900px) {
+  .stand { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+/* Sous ~430 px, le code et le texte ne tiennent plus côte à côte. */
+@media (max-width: 430px) {
+  .stand-call { flex-direction: column; align-items: flex-start; }
+}
+
+.stand-call { display: flex; gap: 16px; align-items: center; }
+
+.qr {
+  flex: none;
+  width: 124px;
+  height: 124px;
+  padding: 6px;
+  border-radius: 10px;
+  /* Le code doit rester noir sur blanc quel que soit le thème : c'est ce que
+     l'appareil photo d'un téléphone lit le plus vite. */
+  background: #fff;
+  box-shadow: 0 8px 22px -14px #000;
+}
+.qr svg { display: block; width: 100%; height: 100%; }
+
+.stand-words { min-width: 0; }
+.stand-title { margin: 0; font-family: var(--display); font-size: 19px; font-weight: 600; }
+.stand-sub { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); }
+.stand-url {
+  margin: 8px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.stand-cheers { margin: 10px 0 0; font-size: 13px; color: var(--ink-2); }
+.cheer-burst { display: inline-block; margin-right: 4px; }
+/* Un applaudissement arrive : l'émoji rebondit, le compteur monte. */
+.cheer-burst[data-pulse="1"] { animation: cheer-pop .45s ease; }
+@keyframes cheer-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.55) rotate(-8deg); }
+  100% { transform: scale(1); }
+}
+
+.stand-queue { display: grid; gap: 8px; align-content: start; }
+
+.queue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  max-height: 190px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.queue-list li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--panel-2);
+}
+.queue-list .rank { font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; text-align: center; }
+.queue-list .label { min-width: 0; }
+.queue-list .label b { display: block; font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-list .label small { display: block; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.queue-drop {
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.queue-drop:hover { color: var(--err); background: var(--hover); }
+
+.stand-empty { margin: 0; font-size: 12.5px; color: var(--ink-3); }
+
+.stand-status {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-3);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.stand-status code { font-size: 11px; }
+.stand-status[data-ready="1"] { border-style: solid; border-color: var(--ok-line); color: var(--ok-ink); }
+
+/* --- Mode stand : tout grossit, la scène prend la place -------------- */
+
+html[data-kiosk="1"] .library { display: none; }
+html[data-kiosk="1"] .layout { grid-template-columns: minmax(0, 1fr); }
+html[data-kiosk="1"] .now-title { font-size: clamp(30px, 4.6vw, 54px); }
+html[data-kiosk="1"] .now-artist { font-size: 17px; }
+html[data-kiosk="1"] .cover { width: 148px; height: 148px; }
+html[data-kiosk="1"] .keyboard { height: 106px; }
+html[data-kiosk="1"] .keyboard-lego { height: 88px; }
+html[data-kiosk="1"] .qr { width: 178px; height: 178px; }
+html[data-kiosk="1"] .stand-title { font-size: 24px; }
+html[data-kiosk="1"] .stand-sub { font-size: 15px; }
+html[data-kiosk="1"] .queue-list { max-height: 260px; }
+html[data-kiosk="1"] .queue-list .label b { font-size: 15px; }
+/* Le bouton reste, pour ressortir du mode sans clavier. */
+html[data-kiosk="1"] #btn-guide,
+html[data-kiosk="1"] #btn-settings { display: none; }
+
+/* ================================================================== */
+/* Convertisseur MP3 → MIDI                                            */
+/*                                                                     */
+/* Le panneau reprend le tiroir des réglages, mais plus large : il doit */
+/* loger une forme d'onde qu'on découpe à la main.                     */
+/* ================================================================== */
+
+.converter { width: min(560px, 100vw); }
+
+.conv-body {
+  padding: 18px 20px 26px;
+  overflow-y: auto;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  min-height: 0;
+}
+
+.conv-intro { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+
+/* --- Dépôt du fichier ---------------------------------------------- */
+
+.conv-drop {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 26px 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--sunken);
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.conv-drop:hover,
+.conv-drop[data-over="1"] { border-color: var(--accent); color: var(--ink); background: var(--hover); }
+.conv-drop-icon { color: var(--ink-3); display: flex; }
+.conv-drop:hover .conv-drop-icon,
+.conv-drop[data-over="1"] .conv-drop-icon { color: var(--accent); }
+.conv-drop-text { font-size: 13px; }
+
+/* --- Étapes -------------------------------------------------------- */
+
+.conv-step { display: grid; gap: 10px; }
+.conv-step-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.conv-step-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.conv-step-note { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+/* --- Forme d'onde et poignées -------------------------------------- */
+
+.conv-wave {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sunken);
+  overflow: hidden;
+  touch-action: none;
+}
+.conv-wave canvas { display: block; width: 100%; height: 96px; }
+
+/* La zone retenue reste claire ; tout le reste est voilé. */
+.conv-sel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-wash);
+  border-inline: 1px solid var(--accent-line);
+  pointer-events: none;
+}
+.conv-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  margin-left: -7px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.conv-handle::before {
+  content: '';
+  position: absolute;
+  inset: 0 6px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.conv-handle:hover::before { inset: 0 5px; }
+.conv-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.conv-times { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.conv-times label,
+.conv-save label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-3);
+  min-width: 0;
+}
+.conv-times input { width: 86px; font-variant-numeric: tabular-nums; }
+.conv-times input,
+.conv-save input,
+.conv-save select {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 10px;
+  color: var(--ink);
+  font-size: 13px;
+  min-width: 0;
+}
+.conv-times input:focus-visible,
+.conv-save input:focus-visible,
+.conv-save select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.conv-times .btn { margin-left: auto; }
+
+/* --- Conversion ---------------------------------------------------- */
+
+.conv-go { width: 100%; padding: 11px; font-size: 14px; }
+.conv-progress { display: grid; gap: 7px; }
+.conv-bar { height: 6px; border-radius: 3px; background: var(--sunken); overflow: hidden; }
+.conv-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent-grad);
+  transition: width .2s ease;
+}
+.conv-status { margin: 0; font-size: 12.5px; color: var(--ink-3); }
+
+/* --- Résultat ------------------------------------------------------ */
+
+.conv-roll { height: 62px; }
+.conv-detail { margin: 0; font-size: 12.5px; color: var(--ink-3); line-height: 1.55; }
+.conv-save { display: grid; gap: 12px; }
+.conv-cat { display: grid; gap: 6px; }
+.conv-save .btn-primary { padding: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .conv-bar span { transition: none; }
+}
+
+/* Transcription d'un extrait demandé par un visiteur, en tâche de fond. */
+.stand-work { margin: 0; display: grid; gap: 5px; font-size: 12.5px; color: var(--ink-2); }
+.stand-work-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--well);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.stand-work-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent-line), var(--accent-hi));
+  transition: width .2s linear;
+}
+/* Les demandes en attente de partition se signalent dans la file. */
+.queue-list li[data-transcribe="1"] .rank::after { content: "·"; color: var(--ink-3); }
+
+/* Piles faibles : la pastille de la barre passe au rouge. Sur un stand, c'est
+   la seule alerte qu'on remarque de loin. */
+.hub-battery[data-low="1"] {
+  color: var(--err);
+  font-weight: 600;
+}
+.hub-battery[data-low="1"]::after { content: " ⚠"; }
+
+/* ---------------------------------------------------------------- */
+/* Mode borne — écran d'appel, verrouillage, alarmes                 */
+/* ---------------------------------------------------------------- */
+
+/* Une panne qui empêche le stand de fonctionner doit se voir de loin, pas se
+   cacher au fond du tiroir de réglages. */
+.stand-alarm {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--err-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+  color: var(--err-ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* --- L'écran d'appel ------------------------------------------------ */
+
+/**
+ * Dans un hall d'exposition, on ne lit pas une interface : on repère une
+ * affiche. Cet écran est donc dessiné pour être compris à dix mètres, en
+ * marchant — trois blocs, aucun détail.
+ */
+.attract {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: clamp(24px, 4vw, 60px);
+  background:
+    radial-gradient(1100px 700px at 12% -10%, var(--body-glow-1) 0%, transparent 62%),
+    radial-gradient(900px 600px at 110% 20%, var(--body-glow-2) 0%, transparent 58%),
+    var(--bg);
+  animation: attract-in .5s ease;
+}
+@keyframes attract-in { from { opacity: 0; } }
+
+.attract-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-content: center;
+  align-items: center;
+  min-height: 0;
+}
+@media (min-width: 900px) {
+  .attract-inner { grid-template-columns: minmax(0, 1.5fr) auto; }
+}
+
+.attract-kicker {
+  margin: 0 0 clamp(10px, 1.6vw, 20px);
+  font-size: clamp(13px, 1.5vw, 20px);
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.attract-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(38px, 6.4vw, 104px);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -.015em;
+}
+
+.attract-sub {
+  margin: clamp(14px, 2vw, 26px) 0 0;
+  max-width: 24em;
+  font-size: clamp(15px, 1.5vw, 24px);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.attract-now {
+  margin-top: clamp(18px, 2.6vw, 34px);
+  padding-left: 16px;
+  border-left: 3px solid var(--accent);
+  display: grid;
+  gap: 2px;
+}
+.attract-now-label {
+  font-size: clamp(11px, 1vw, 14px);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.attract-now strong { font-size: clamp(19px, 2.1vw, 34px); font-weight: 600; }
+.attract-now span:last-child { font-size: clamp(14px, 1.3vw, 20px); color: var(--ink-2); }
+
+.attract-call { display: grid; justify-items: center; gap: 12px; }
+
+.attract-qr {
+  width: clamp(180px, 24vw, 380px);
+  height: clamp(180px, 24vw, 380px);
+  padding: clamp(10px, 1.2vw, 18px);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 60px -30px #000;
+}
+.attract-qr svg { display: block; width: 100%; height: 100%; }
+
+.attract-url {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(12px, 1.1vw, 17px);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.attract-hint {
+  margin: 0;
+  font-size: clamp(15px, 1.5vw, 23px);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.attract-foot {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(12px, 1.1vw, 16px);
+  color: var(--ink-3);
+  /* Un texte qui respire attire l'œil sans clignoter — pas de stroboscope
+     dans un hall où passent des milliers de personnes. */
+  animation: attract-breathe 3.4s ease-in-out infinite;
+}
+@keyframes attract-breathe { 0%, 100% { opacity: .45; } 50% { opacity: .95; } }
+
+/* Sans télécommande joignable, la colonne de droite n'a rien à montrer. */
+.attract[data-remote="0"] .attract-call { display: none; }
+.attract[data-remote="0"] .attract-inner { grid-template-columns: minmax(0, 1fr); }
+
+@media (prefers-reduced-motion: reduce) {
+  .attract, .attract-foot { animation: none; }
+}
+
+/* --- Verrouillage --------------------------------------------------- */
+
+.unlock {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: var(--scrim);
+  backdrop-filter: blur(3px);
+}
+
+.unlock-panel {
+  width: min(340px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-grad);
+  box-shadow: var(--shadow);
+}
+.unlock-panel h2 { margin: 0; font-family: var(--display); font-size: 19px; font-weight: 600; }
+.unlock-panel p { margin: 0; font-size: 13px; color: var(--ink-3); }
+.unlock-panel input {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 22px;
+  letter-spacing: .5em;
+  text-align: center;
+}
+.unlock-error { color: var(--err) !important; }
+
+/* Verrouillé, tout ce qui commande disparaît de la barre. */
+html[data-locked="1"] .topbar-actions .btn-icon,
+html[data-locked="1"] #btn-connect { display: none; }
+html[data-locked="1"] .library-tools,
+html[data-locked="1"] .library-link,
+html[data-locked="1"] .library-link-state { display: none; }
+
+/* ---------------------------------------------------------------- */
+/* Pause de service                                                  */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Le seul silence que le jukebox s'impose. Sans explication, un piano muet
+ * pendant quarante-cinq secondes passe pour une panne — et sur un stand, une
+ * panne apparente vide la table. On dit donc pourquoi, et surtout combien de
+ * temps : c'est le décompte qui fait patienter, pas le message.
+ */
+.rest {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--accent-wash);
+}
+
+.rest-dial {
+  position: relative;
+  flex: none;
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+}
+.rest-dial svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Le cadran se vide dans le sens des aiguilles, en partant du haut. */
+  transform: rotate(-90deg);
+}
+.rest-dial circle {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.rest-dial-track { stroke: var(--track); }
+.rest-dial-run {
+  stroke: var(--accent);
+  /* 2 × π × 31 ≈ 194.8 : la circonférence, que le script entame. */
+  stroke-dasharray: 194.8;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset .25s linear;
+}
+
+.rest-count {
+  position: relative;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent-hi);
+  font-variant-numeric: tabular-nums;
+}
+
+.rest-words { min-width: 0; }
+.rest-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 600;
+}
+.rest-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+/* En borne, tout grossit : le message doit rester lisible de loin. */
+html[data-kiosk="1"] .rest { padding: 20px 26px; gap: 24px; }
+html[data-kiosk="1"] .rest-dial { width: 88px; height: 88px; }
+html[data-kiosk="1"] .rest-count { font-size: 31px; }
+html[data-kiosk="1"] .rest-title { font-size: 24px; }
+html[data-kiosk="1"] .rest-text { font-size: 16px; }
+
+/* Le même message, dans le pavé « en ce moment » de l'affiche. */
+.attract-rest { border-left-color: var(--accent-hi); }
+
+/* Palmarès du jour sur l'affiche : la preuve sociale, qui donne envie de
+   choisir à son tour. */
+.attract-top {
+  margin: clamp(16px, 2.2vw, 30px) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  counter-reset: palmares;
+}
+.attract-top li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: clamp(15px, 1.5vw, 24px);
+  color: var(--ink-2);
+}
+.attract-top li::before {
+  counter-increment: palmares;
+  content: counter(palmares);
+  flex: none;
+  width: 1.6em;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.attract-top-title { color: var(--ink); }
+.attract-top-count { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+/* Second piano : sa pastille reprend celle du premier, en plus discret. */
+#hub-pill-2 { opacity: .85; }

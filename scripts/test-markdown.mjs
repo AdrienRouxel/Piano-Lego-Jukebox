@@ -42,6 +42,21 @@ check(
   html('nom_de_variable'),
   '<p>nom_de_variable</p>'
 );
+check(
+  'italique dans du gras',
+  html('**Catégorie *Moderne*** suivante'),
+  '<p><strong>Catégorie <em>Moderne</em></strong> suivante</p>'
+);
+check(
+  'gras dans de l’italique',
+  html('*une **nuance** ici*'),
+  '<p><em>une <strong>nuance</strong> ici</em></p>'
+);
+check(
+  'gras et italique ensemble',
+  html('***les deux***'),
+  '<p><em><strong>les deux</strong></em></p>'
+);
 check('code en ligne', html('la valeur `0x51`'), '<p>la valeur <code>0x51</code></p>');
 check(
   'rien n’est interprété dans un segment de code',

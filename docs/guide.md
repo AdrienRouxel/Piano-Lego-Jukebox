@@ -219,10 +219,19 @@ Pendant la lecture :
 ### La scène
 
 - **La pochette et le titre** — la pochette vient d'une image déposée à côté du
-  fichier, ou d'une couleur tirée du titre.
+  fichier (`Artiste - Titre.jpg`), et pour un morceau ajouté par un lien, de la
+  plateforme elle-même : elle est téléchargée en 600 pixels avec l'extrait. À
+  défaut, une couleur tirée du titre.
 - **Les pastilles** sous le titre disent d'où vient le son : *MIDI synthétisé*,
-  *Audio + partition MIDI* ou *Audio seul*, puis le nombre de notes, le tempo et
-  la mesure.
+  *Partition transcrite*, *Enregistrement d'origine* ou *Audio seul*, puis le
+  nombre de notes, le tempo et la mesure.
+- **🔊 Écouter l'enregistrement** — n'apparaît que pour un morceau qui a les
+  deux, c'est-à-dire venu d'un lien de plateforme. Par défaut on entend la
+  **partition transcrite**, jouée au piano : c'est elle qui fait bouger le
+  modèle, et c'est ce qu'on est venu voir. Le bouton bascule sur l'extrait
+  d'origine à la même seconde, et **🎹 Revenir à la partition** fait le chemin
+  inverse. Le choix ne vaut que pour le morceau en cours : le suivant repart de
+  sa partition.
 - **Clavier « Partition »** — les 88 touches d'un vrai piano. S'allument les
   notes réellement jouées par le fichier.
 - **Clavier « Modèle LEGO »** — les 25 touches du 21323, animées par une
@@ -234,9 +243,23 @@ Pendant la lecture :
 
 ### La bibliothèque
 
-La liste des morceaux, avec un champ pour filtrer et un bouton **Actualiser**
-qui relit le dossier `tracks/`. Les étiquettes **MIDI** et **Audio** disent quels
-fichiers existent pour chaque morceau.
+La liste des morceaux, avec un champ pour filtrer et trois boutons — survole-les
+pour lire ce qu'ils font :
+
+| Bouton | Effet |
+|---|---|
+| 🔗 | Déplie un champ où coller un lien **Apple Music**, **Spotify** ou **Deezer** — ou simplement un titre. Le serveur en tire l'extrait officiel de trente secondes et la pochette, les range dans la catégorie **Demandes** et met le morceau en file ; la partition se transcrit dans la foulée. |
+| 🎼 | Ouvre le convertisseur MP3 → MIDI. |
+| 🔄 | Relit le dossier `tracks/`. |
+
+Les étiquettes **MIDI** et **Audio** disent quels fichiers existent pour chaque
+morceau.
+
+Les morceaux de la catégorie **Demandes** — ceux arrivés par un lien — portent
+une **croix** à droite, qui apparaît au survol : elle les efface du disque,
+extrait et partition compris, après confirmation. Le reste de la bibliothèque
+n'a pas de croix : ces fichiers-là ont été déposés à la main dans `tracks/`, et
+c'est à la main qu'ils s'enlèvent.
 
 ### Raccourcis clavier
 
@@ -245,9 +268,17 @@ fichiers existent pour chaque morceau.
 | `Espace` | Lecture / pause |
 | `⇧ →` | Morceau suivant |
 | `⇧ ←` | Morceau précédent |
+| `A` | Lecture aléatoire |
+| `R` | Répétition : aucune, la liste, le morceau |
+| `P` | Rend le clavier de l'écran jouable |
+| `S` | Mode borne : plein écran et lecture en continu |
 | `G` | Ouvre ou ferme le Geek mode |
 | `?` | Ouvre ce guide |
 | `Échap` | Ferme le tiroir de réglages (ou annule la mise en route) |
+
+Tant que le clavier est jouable, les raccourcis d'une seule lettre se taisent —
+sauf `P`, qui reste la sortie de secours. `Espace` et les flèches, elles,
+continuent de fonctionner.
 
 ---
 
@@ -288,6 +319,9 @@ Où trouver des MIDI : [Mutopia](https://www.mutopiaproject.org/),
 | **Apparence** | Bascule entre l'habillage *Piano* et l'habillage *Epitech*. |
 | **Mouvement des touches** | Les réglages de la chorégraphie : puissances, avance, accents, sensibilité, freinage, démarrage progressif, sens de rotation. C'est là qu'on passe du temps. |
 | **Mise en route** | Facultatif : un chef d'orchestre demande au piano s'il est prêt avant chaque morceau. Un clic passe l'introduction. |
+| **Mode borne** | Le profil (portes ouvertes ou salon), le passage en borne, la reprise automatique, l'écran d'appel et son texte, le clavier jouable, l'affichage des prénoms, le rendu sonore, le déclenchement par le capteur, le ménagement du moteur, le verrouillage, et l'état de la télécommande des visiteurs. |
+| **Deux pianos** | La connexion d'un second modèle, et la répartition de la partition entre les deux. |
+| **Bilan du stand** | Ce que la borne a joué depuis son démarrage, copiable ou enregistrable. |
 | **Démonstration** | Le *Geek mode* : un bandeau de télémétrie en bas de l'écran. Tout y est mesuré en direct. |
 | **Essai du moteur** | Le curseur de calibration, plus freinage, rampe et séquence d'essai. Lancer un essai met la lecture en pause. |
 | **Le hub** | Les informations de la brique, le renommage, la reconnexion automatique, l'extinction à distance, et les quatre pastilles d'alerte matérielle. |
@@ -297,6 +331,109 @@ Où trouver des MIDI : [Mutopia](https://www.mutopiaproject.org/),
 | **Journal** | L'historique des événements de connexion. **Le premier endroit à regarder quand quelque chose cloche.** |
 
 Le détail de chaque réglage est dans le [README](../README.md#régler-le-mouvement-des-touches).
+
+---
+
+## Tenir un stand
+
+Cette partie ne concerne que les journées portes ouvertes. Pour une
+démonstration à deux personnes autour d'un bureau, tout ce qui précède suffit.
+
+### Avant l'ouverture
+
+1. **Brancher le piano** et le connecter comme aux étapes 4 et 5.
+2. **Lancer le serveur** de la façon qui correspond à ton installation :
+
+   | Où tourne le site | Commande |
+   |---|---|
+   | Sur un serveur avec un nom de domaine | `npm start` — rien de plus |
+   | Chez toi, le téléphone sur le même Wi-Fi | `npm start`, puis coche **Mode local** dans Réglages ⚙︎ → Mode borne |
+   | En local, visiteurs en 5G | `PUBLIC_URL=https://… npm start` |
+   | Stand ouvert au réseau dès le lancement | `npm run stand` |
+
+   Le terminal affiche alors l'adresse de la télécommande, le **code du stand**
+   et le **jeton de pilotage**. Garde-les sous les yeux.
+
+3. **Installer le moteur de transcription**, une seule fois, si tu veux que les
+   liens Spotify soient convertis en partition :
+
+   ```bash
+   npm run fetch-transcriber
+   ```
+
+4. **Vérifier le code QR** : il apparaît sous le lecteur. Scanne-le toi-même
+   avec ton téléphone avant l'ouverture — c'est le seul test qui compte.
+5. **Choisir le profil** : *Réglages ⚙︎ → Mode borne → Portes ouvertes* ou
+   *Salon*. Le second allume l'écran d'appel, le ménagement du moteur et
+   prépare un code de verrouillage — voir « Trois jours de salon » plus bas.
+6. **Imprimer le chevalet** : *Fiche à imprimer*. Une page A5 à plier et poser
+   à côté du piano, avec le code QR en grand.
+7. **Passer en borne** : touche `S`. Plein écran, lecture en continu.
+
+> Si le jukebox tourne sur une autre machine que le serveur, ouvre-le une
+> première fois avec le jeton de pilotage : `http://…/?op=LEJETON`. Il s'en
+> souvient ensuite, et le jeton disparaît de la barre d'adresse.
+
+### Pendant la journée
+
+- La **file d'attente** s'affiche sous le lecteur. La croix retire une demande ;
+  *Réglages ⚙︎ → Journée portes ouvertes → Vider la file* remet tout à zéro.
+- Le jukebox **ne s'arrête jamais** de lui-même. S'il se tait, c'est que le
+  navigateur a perdu le son : recharge la page.
+- Un visiteur veut **essayer** ? Touche `P` : les touches de l'écran deviennent
+  jouables, et le modèle bouge en même temps.
+- Les **prénoms** affichés à l'écran sont saisis par les visiteurs. Ils sont
+  filtrés, mais si personne ne surveille l'écran, décoche *Afficher le prénom*.
+- Surveille les **piles** : la pastille en haut à droite passe au rouge sous
+  15 %. Prévois un jeu de rechange, le moteur consomme.
+
+### Trois jours de salon
+
+Un salon n'est pas une journée portes ouvertes qui dure plus longtemps : le
+stand est parfois vide, le hall est bruyant, l'ordinateur veut s'endormir et le
+moteur tourne quarante heures dans la semaine. Le profil **Salon** répond à ces
+quatre choses-là.
+
+- **L'écran d'appel** prend l'écran après une minute sans personne : une affiche
+  lisible à dix mètres, avec le code QR en grand. La musique continue derrière.
+  Le premier geste la fait disparaître.
+- **Verrouille l'interface** avant de t'éloigner : *Verrouiller l'interface*,
+  avec le code à quatre chiffres proposé. Note-le. Pour reprendre la main :
+  <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>U</kbd>.
+- **Le moteur souffle** quarante-cinq secondes toutes les vingt minutes de
+  marche. Ce silence entre deux morceaux est voulu, l'écran le dit.
+- **Prévois l'alimentation.** Six piles AAA tiennent trois à quatre heures avec
+  le moteur en marche : compte deux à trois jeux par jour, ou passe le hub sur
+  la batterie LEGO 88015. Sous 8 % de charge, le jukebox coupe le moteur — un
+  moteur qui cale bourdonne, et ça s'entend.
+- **Passe le son en « Hall »** : *Réglages ⚙︎ → Mode borne → Rendu sonore*. La
+  dynamique d'un piano disparaît sous le bruit d'un hall ; ce profil comprime
+  fort et coupe les graves qui n'apportent rien.
+- **Écris l'affiche** : titre et sous-titre se règlent, avec le numéro de hall
+  et d'allée. Le palmarès du jour s'ajoute d'une case.
+- **En fin de journée**, relève le bilan : *Réglages ⚙︎ → Bilan du stand →
+  Copier le bilan*.
+
+> Le code du stand et le jeton de pilotage ne changent plus quand le serveur
+> redémarre : le chevalet imprimé lundi reste valable jeudi.
+
+### Ce qu'il faut savoir répondre
+
+> **« Il joue vraiment ? »**
+> Non — et c'est mieux que ça. Le modèle n'a ni corde ni haut-parleur : le son
+> sort de l'ordinateur, et le programme fait tourner le moteur du piano au
+> rythme de la musique. Ce qu'on pilote, c'est la mécanique.
+
+> **« Comment vous avez fait pour parler au piano ? »**
+> Le hub LEGO parle un protocole documenté, Powered Up. La page l'utilise
+> directement depuis le navigateur, en Bluetooth. Le *Geek mode* (touche `G`)
+> montre les trames qui partent, en direct.
+
+> **« Il peut jouer n'importe quelle musique ? »**
+> Colle un lien Spotify ou Apple Music depuis ton téléphone. On récupère
+> l'extrait officiel de trente secondes — le morceau entier est protégé, on ne
+> le contourne pas — et un réseau de neurones le transcrit en partition,
+> pendant que le morceau précédent joue.
 
 ---
 

@@ -11,7 +11,8 @@
     // Même thème que la fenêtre du jukebox, appliqué avant le premier rendu.
     try {
       const stored = JSON.parse(localStorage.getItem('lego-piano-jukebox/settings') ?? '{}');
-      if (stored.theme === 'epitech') document.documentElement.dataset.theme = 'epitech';
+      // « piano » est le thème par défaut : il n'a pas d'attribut.
+      if (['epitech', 'lego'].includes(stored.theme)) document.documentElement.dataset.theme = stored.theme;
     } catch { /* stockage indisponible : thème par défaut */ }
   </script>
 </head>

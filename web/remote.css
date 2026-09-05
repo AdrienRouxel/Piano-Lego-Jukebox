@@ -1,0 +1,429 @@
+/* ------------------------------------------------------------------
+   Télécommande des visiteurs — feuille de style à part.
+
+   Cette page s'ouvre sur le téléphone d'un visiteur, en 5G, dans un hall où
+   deux cents personnes font la même chose : elle ne charge ni police, ni
+   image, ni la grande feuille de style du jukebox. Tout est ici, en quelques
+   Ko, et la page s'affiche avant que le visiteur ait relevé la tête.
+
+   Charte Epitech : bleu #013afb, fond très sombre, titres serrés.
+   ------------------------------------------------------------------ */
+
+:root {
+  --bg: #07080f;
+  --bg-2: #0e1120;
+  --card: #141829;
+  --card-2: #1b2038;
+  --line: #262c47;
+
+  --ink: #f2f4fb;
+  --ink-2: #a8b0cc;
+  --ink-3: #6f7796;
+
+  --blue: #013afb;
+  --blue-hi: #3a63ff;
+  --green: #00ff97;
+  --pink: #ff1ef7;
+  --orange: #ff5f3a;
+
+  --radius: 16px;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  padding: 0 16px calc(28px + env(safe-area-inset-bottom));
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
+  background:
+    radial-gradient(900px 500px at 50% -12%, #0b1a52 0%, transparent 62%),
+    var(--bg);
+  min-height: 100vh;
+  overscroll-behavior-y: contain;
+}
+
+button, input { font: inherit; color: inherit; }
+
+/* ---------------------------------------------------------------- */
+/* En-tête                                                           */
+/* ---------------------------------------------------------------- */
+
+.top { padding: calc(26px + env(safe-area-inset-top)) 0 6px; }
+
+.kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--blue-hi);
+}
+
+.top h1 {
+  margin: 0;
+  font-size: clamp(28px, 8vw, 38px);
+  line-height: 1.05;
+  letter-spacing: -.02em;
+}
+
+.lede {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Ce qui joue                                                       */
+/* ---------------------------------------------------------------- */
+
+.now {
+  margin: 20px 0 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, var(--card-2), var(--card));
+}
+
+.now-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.now[data-state="paused"] .now-label { color: var(--ink-3); }
+
+.now-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.now-artist {
+  margin: 3px 0 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.now-artist:empty { display: none; }
+
+.now-bar {
+  margin-top: 14px;
+  height: 4px;
+  border-radius: 4px;
+  background: #ffffff14;
+  overflow: hidden;
+}
+
+.now-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--blue-hi), var(--green));
+  transition: width .4s linear;
+}
+
+/* ---------------------------------------------------------------- */
+/* File d'attente                                                    */
+/* ---------------------------------------------------------------- */
+
+.queue { margin-top: 22px; }
+
+.queue h2, .picker h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.count { color: var(--blue-hi); }
+
+.queue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.queue-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.queue-list .rank {
+  flex: none;
+  width: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--blue-hi);
+}
+
+.queue-list .label { min-width: 0; }
+.queue-list .label b { display: block; font-weight: 600; }
+.queue-list .label small { color: var(--ink-3); }
+
+/* Les demandes venues de ce téléphone-ci sont reconnaissables. */
+.queue-list li[data-mine="1"] { border-color: #013afb88; background: linear-gradient(180deg, #013afb1f, var(--card)); }
+.queue-list li[data-mine="1"] .rank { color: var(--green); }
+
+/* ---------------------------------------------------------------- */
+/* Choix du morceau                                                  */
+/* ---------------------------------------------------------------- */
+
+.picker { margin-top: 26px; }
+
+.search-row { position: sticky; top: 0; z-index: 2; padding: 10px 0; background: linear-gradient(180deg, var(--bg) 72%, transparent); }
+
+#search {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 16px; /* en dessous de 16 px, iOS zoome tout seul sur le champ */
+}
+#search::placeholder { color: var(--ink-3); }
+#search:focus { outline: 2px solid var(--blue-hi); outline-offset: 1px; }
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 12px;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none;
+  padding: 8px 15px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip[aria-selected="true"] {
+  border-color: transparent;
+  background: var(--blue);
+  color: #fff;
+}
+
+.tracks { display: grid; gap: 8px; }
+
+.track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, transform .12s;
+}
+.track:active { transform: scale(.985); }
+.track[data-queued="1"] { border-color: #00ff9755; background: linear-gradient(180deg, #00ff9714, var(--card)); }
+.track[disabled] { opacity: .55; cursor: default; }
+
+.track .body { flex: 1; min-width: 0; }
+.track .title { display: block; font-weight: 600; }
+.track .artist { display: block; font-size: 13px; color: var(--ink-3); }
+
+.track .go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+.track[data-queued="1"] .go { background: var(--green); color: #04120c; }
+
+.empty { color: var(--ink-3); padding: 18px 2px; }
+
+/* ---------------------------------------------------------------- */
+/* Pied de page et notifications                                     */
+/* ---------------------------------------------------------------- */
+
+.foot {
+  margin-top: 34px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.foot strong { color: var(--ink-2); }
+.foot-small { font-size: 12px; }
+
+.toasts {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 10;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 13px 16px;
+  border-radius: 12px;
+  background: #1d2340f2;
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 40px -18px #000;
+  font-size: 15px;
+}
+.toast.success { border-color: #00ff9766; background: #0d2a20f2; }
+.toast.error { border-color: #ff5f3a66; background: #2a1410f2; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ---------------------------------------------------------------- */
+/* Applaudissements                                                  */
+/* ---------------------------------------------------------------- */
+
+.cheer-row { margin-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.cheer {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 20px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--card-2), var(--card));
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform .12s, border-color .12s, background .2s;
+}
+.cheer:active { transform: scale(.96); }
+.cheer:disabled { opacity: .7; }
+/* Quand un applaudissement passe — le sien ou celui d'un autre visiteur. */
+.cheer[data-pulse="1"] {
+  border-color: var(--green);
+  background: linear-gradient(180deg, #00ff9722, var(--card));
+}
+.cheer-icon { font-size: 20px; line-height: 1; }
+.cheer-count { color: var(--green); font-variant-numeric: tabular-nums; }
+.cheer-count:empty { display: none; }
+
+.cheer-hint { margin: 0; flex: 1 1 180px; font-size: 12.5px; color: var(--ink-3); }
+
+/* ---------------------------------------------------------------- */
+/* Prénom, et page verrouillée                                       */
+/* ---------------------------------------------------------------- */
+
+.name-field { display: grid; gap: 6px; margin-bottom: 4px; }
+.name-field > span { font-size: 13px; color: var(--ink-2); }
+.name-field small { display: block; color: var(--ink-3); font-size: 11.5px; }
+.name-field input {
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 16px;
+}
+.name-field input:focus { outline: 2px solid var(--blue-hi); outline-offset: 1px; }
+
+.locked {
+  margin: 22px 0 0;
+  padding: 15px 17px;
+  border: 1px solid #ff5f3a55;
+  border-radius: 12px;
+  background: #2a141033;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Envoi d'un lien de plateforme                                     */
+/* ---------------------------------------------------------------- */
+
+.link-box {
+  margin-top: 26px;
+  padding: 18px;
+  border: 1px solid #013afb66;
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, #013afb1c, var(--card));
+}
+.link-box h2 { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.link-lede { margin: 0 0 14px; font-size: 13.5px; color: var(--ink-2); }
+.link-lede strong { color: var(--ink); }
+
+.link-form { display: flex; gap: 8px; }
+.link-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0a0d1a;
+  color: var(--ink);
+  font-size: 16px;
+}
+.link-form input:focus { outline: 2px solid var(--blue-hi); outline-offset: 1px; }
+.link-form button {
+  flex: none;
+  padding: 13px 20px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 650;
+  cursor: pointer;
+}
+.link-form button:disabled { opacity: .6; cursor: default; }
+
+.link-state { margin: 12px 0 0; font-size: 13.5px; color: var(--ink-2); }
+.link-state[data-kind="error"] { color: #ffb4a0; }
+.link-state[data-kind="success"] { color: var(--green); }
+/* Pendant la recherche de l'extrait, trois points qui respirent. */
+.link-state[data-kind="working"]::after {
+  content: "";
+  display: inline-block;
+  width: 1.2em;
+  animation: link-dots 1.2s steps(4, end) infinite;
+}
+@keyframes link-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+
+/* Pause de service : le piano se tait volontairement, et le dit. */
+.now[data-rest="1"] {
+  border-color: #ffb45c66;
+  background: linear-gradient(160deg, #ffb45c1f, var(--card));
+}
+.now[data-rest="1"] .now-label::after { content: " · pause de service"; }
+.now[data-rest="1"] .now-bar span {
+  background: linear-gradient(90deg, #ffb45c, #ff5f3a);
+  transition: none;
+}

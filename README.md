@@ -29,6 +29,7 @@ npm start          # puis ouvrir http://localhost:4173 dans Chrome ou Edge
 - [Comment ça marche](#comment-ça-marche)
 - [Thèmes](#thèmes)
 - [Geek mode](#geek-mode)
+- [Journée portes ouvertes](#journée-portes-ouvertes)
 - [Mise en route](#mise-en-route)
 - [Régler le mouvement des touches](#régler-le-mouvement-des-touches)
 - [Le panneau matériel](#le-panneau-matériel)
@@ -94,7 +95,7 @@ Puis ouvre **http://localhost:4173**.
 > `file://`, ou l'adresse IP de la machine, ne fonctionnera pas.
 
 Au tout premier lancement, si le dossier `tracks/` est vide, une bibliothèque de
-départ y est écrite : 31 morceaux répartis en quatre catégories, générés
+départ y est écrite : 25 morceaux répartis en quatre catégories, générés
 localement note à note — rien n'est téléchargé.
 
 ### Connecter le piano
@@ -129,7 +130,7 @@ ignoré.
 
 | Catégorie | Contenu |
 |---|---|
-| `Classique/` | 20 pièces du domaine public, en arrangement simplifié |
+| `Classique/` | 14 pièces du domaine public, en arrangement simplifié |
 | `Moderne/` | 10 pièces originales, dans les esthétiques actuelles |
 | `Gaming/` | vide — à remplir |
 | `Réglage/` | la piste de calibration du moteur |
@@ -188,6 +189,70 @@ Le répertoire pour piano est immense et largement dans le domaine public :
 [MuseScore](https://musescore.org) exportées en MIDI. Un séquenceur (Logic,
 Ableton, GarageBand, MuseScore) exporte aussi tes propres compositions.
 
+### Convertir un MP3 en partition
+
+Le bouton **Convertir un MP3** de la bibliothèque ouvre un panneau qui
+transforme un enregistrement en fichier MIDI jouable par le modèle.
+
+1. Dépose un fichier audio (n'importe quel format que le navigateur sait lire).
+2. Choisis l'extrait : poignées sur la forme d'onde, champs de timecode, ou
+   flèches du clavier une fois une poignée sélectionnée. Le bouton
+   *Écouter l'extrait* rejoue la sélection.
+3. Lance la conversion, puis range le résultat sous un titre et une catégorie —
+   existante, ou nouvelle.
+
+La transcription est faite par [basic-pitch](https://github.com/spotify/basic-pitch),
+le réseau de Spotify. Rien de ton audio ne quitte la machine dans les deux cas —
+le serveur local est sur ton ordinateur, et il ne renvoie que des notes.
+
+Deux moteurs, le même réseau, dix à quinze fois d'écart :
+
+| | Installation | Vitesse mesurée |
+|---|---|---|
+| **Rapide** (recommandé) | `npm run setup-transcriber` — Python, ~330 Mo | ~6,5× le temps réel |
+| **Navigateur** (repli) | `npm run fetch-transcriber` — ~2,5 Mo, aucune dépendance | ~0,4× le temps réel |
+
+Le convertisseur prend le moteur rapide s'il le trouve, et se rabat sur le
+navigateur sinon — sans rien te demander. Si aucun des deux n'est installé, le
+panneau s'ouvre quand même et te le dit.
+
+**Le moteur de calcul dépend de ta machine**, et n'est pas choisi d'avance :
+
+| Machine | Moteur retenu |
+|---|---|
+| macOS sur puce Apple | CoreML, qui passe par le Neural Engine |
+| macOS Intel, Windows, Linux | ONNX Runtime, portable et léger |
+
+CoreML n'existe que sur macOS et n'accélère que sur puce Apple ; l'imposer
+ailleurs ferait échouer l'installation. `npm run setup-transcriber` regarde la
+plateforme et choisit tout seul — la logique tient dans `chooseBackend()`, au
+début de `scripts/setup-transcriber.mjs`.
+
+Pour tout désinstaller : supprime `.venv-transcriber/`.
+
+**Pourquoi choisir un extrait plutôt que tout convertir ?** Parce que la
+transcription est coûteuse — compte grosso modo le temps réel de l'extrait sur
+une machine récente, davantage sans accélération graphique. Trente secondes de
+thème suffisent en général, et le résultat est meilleur qu'un morceau entier
+transcrit à l'aveugle.
+
+**Ce que « optimisé pour le piano LEGO » veut dire.** La sortie brute d'un
+réseau de transcription est inexploitable telle quelle : harmoniques prises pour
+des notes, fragments d'une milliseconde, accords de douze sons. Le jukebox
+applique donc une passe de nettoyage, et te dit ce qu'elle a retiré :
+
+| Traitement | Pourquoi |
+|---|---|
+| notes trop faibles écartées | ce sont des harmoniques, pas des notes voulues |
+| notes de moins de 80 ms écartées | une touche du modèle ne peut pas être frappée plus vite |
+| notes identiques recollées | le réseau hache parfois une note tenue |
+| polyphonie ramenée à 6 voix | l'arbre à cames ne rend pas les accords fournis |
+| hauteurs repliées dans les 88 touches | rien ne doit sortir du clavier |
+| nuances ramenées dans une plage utile | pour que le moteur réagisse à chaque note |
+
+Les seuils sont dans `LEGO_DEFAULTS`, au début de
+`web/js/music/transcribe.js`.
+
 ### Écouter hors connexion
 
 Par défaut, les échantillons de piano sont chargés depuis un CDN au premier
@@ -225,9 +290,12 @@ flowchart LR
 ```
 server.mjs                      Serveur statique + inventaire de tracks/ (aucune dépendance)
 scripts/
-  midi-writer.mjs               Écrit un fichier MIDI standard et la grammaire des partitions
+  midi-writer.mjs               Grammaire d'écriture des partitions (au-dessus de l'encodeur)
+  setup-transcriber.mjs         Installe le moteur rapide (Python), selon la plateforme
+  transcribe.py                 Pont Python : audio → notes, moteur choisi selon la machine
+  fetch-transcriber.mjs         Rapatrie le moteur de repli, celui du navigateur
   make-library.mjs              Écrit la bibliothèque de départ dans tracks/, rangée par catégories
-  scores/classique.mjs          Vingt pièces du domaine public, en arrangement simplifié
+  scores/classique.mjs          Quatorze pièces du domaine public, en arrangement simplifié
   scores/moderne.mjs            Dix pièces originales, dans les esthétiques actuelles
   fetch-samples.mjs             Copie les échantillons de piano en local
   test-protocol.mjs             Vérifie la couche protocole contre la spécification (npm test)
@@ -243,6 +311,7 @@ web/
     hubtools.js                 Panneaux matériel : infos, essais, capteur, console LWP3
     reader.js                   Lecteur de documentation intégré (bouton 📖)
     markdown.js                 Convertisseur Markdown → HTML, écrit à la main
+    converter.js                Panneau du convertisseur MP3 : extrait, conversion, rangement
     geek.js                     Panneau de télémétrie temps réel (« Geek mode »)
     geek-screen.js              Amorçage de la page du second écran
     lego/
@@ -250,6 +319,8 @@ web/
       hub.js                    Connexion Web Bluetooth, découverte des ports, file d'écriture
     music/
       midi.js                   Lecteur de fichiers MIDI standard (formats 0 et 1), écrit à la main
+      midi-write.js             Écriture de fichiers MIDI — partagée avec les scripts Node
+      transcribe.js             Audio → MIDI : basic-pitch, puis nettoyage pour le modèle LEGO
       sampler.js                Échantillonneur + synthétiseur de repli + réverbération
       player.js                 Transport, ordonnancement des notes, horloge commune
       choreography.js           Courbe d'activité et pilote du moteur
@@ -416,6 +487,336 @@ Le panneau coûte environ **0,13 ms par image** quand il est ouvert — 0,8 % du
 budget d'une image à 60 Hz — et rien du tout quand il est fermé : la boucle de
 rafraîchissement sort à sa première ligne. Les courbes sont redessinées à chaque
 image, les quelque soixante valeurs chiffrées seulement dix fois par seconde.
+
+---
+
+## Journée portes ouvertes
+
+Le jukebox a été repris pour tenir une journée entière sur un stand, devant des
+visiteurs qui passent, s'arrêtent trente secondes, et repartent. Tout ce que
+décrit cette section sert ce moment-là — et rien de tout cela n'est simulé : le
+code QR est calculé sur place, les extraits sont téléchargés en direct, la
+partition est transcrite par le navigateur qui affiche la page.
+
+### La télécommande des visiteurs
+
+Un code QR s'affiche à côté du piano. Le visiteur le scanne, sa page s'ouvre, il
+choisit un morceau — et le piano le joue quand son tour arrive.
+
+Le point délicat est le réseau. Chez soi, l'ordinateur et le téléphone sont sur
+le même Wi-Fi et il n'y a rien à installer ; sur un salon, **les visiteurs sont
+sur leur forfait mobile** et une adresse en `192.168.…` ne leur sert à rien.
+Le serveur cherche donc une adresse joignable, dans cet ordre :
+
+| Situation | Ce qu'il faut faire |
+|---|---|
+| Le site tourne sur un serveur avec un nom de domaine | **Rien.** L'adresse est déduite de l'en-tête `Host`, proxy inverse compris. |
+| Chez soi, le téléphone sur le même Wi-Fi que l'ordinateur | **Coche « Mode local »** dans Réglages ⚙︎ → Mode borne. |
+| Le site tourne en local, visiteurs en 5G | `PUBLIC_URL=https://… npm start`, derrière un tunnel |
+| Le stand doit s'ouvrir au réseau dès le lancement | `npm run stand` — le mode local est alors acquis, et l'interrupteur verrouillé |
+
+Le **mode local** est celui qu'on utilise à la maison : il ouvre une seconde
+écoute, sur la seule adresse Wi-Fi de la machine, le temps de la démonstration.
+Il se coche et se décoche sans redémarrer le serveur — et le jukebox, lui, ne
+quitte pas `localhost`, donc sa liaison Bluetooth tient pendant la bascule. À
+n'allumer que sur un réseau de confiance : le dossier `tracks/` et toute
+l'interface deviennent alors lisibles par le réseau.
+
+La page du jukebox, elle, reste sur l'ordinateur relié au piano : c'est le seul
+poste qui parle en Bluetooth au modèle. Le Web Bluetooth exigeant un contexte
+sécurisé, ce poste doit être ouvert sur `localhost` ou en `https://`.
+
+### Le code QR, écrit à la main
+
+Il n'y a pas de bibliothèque de code QR dans ce dépôt : le format est
+entièrement spécifié, et [`web/js/qrcode.js`](web/js/qrcode.js) l'implémente en
+une page — arithmétique dans le corps de Galois à 256 éléments, correction
+d'erreur de Reed-Solomon, placement en serpentin, choix du masque parmi huit
+par calcul de pénalités.
+
+C'est une belle chose à montrer sur un stand : le carré noir et blanc que tout
+le monde scanne sans y penser devient un objet qu'on peut ouvrir et expliquer.
+`npm test` le vérifie en le **relisant dans l'autre sens** — masque retrouvé,
+blocs désentrelacés, texte restitué — plutôt qu'en comparant des pixels.
+
+### Demander un morceau par un lien Spotify ou Apple Music
+
+Le visiteur colle un lien Spotify, Apple Music ou Deezer — ou tape simplement un
+titre. Le piano le joue.
+
+Il faut être clair sur ce qui se passe, parce que c'est précisément la question
+qu'un visiteur curieux posera : **aucune plateforme ne laisse récupérer un
+morceau entier**, et il n'est pas question de contourner cela. Ce qui est
+public, gratuit et prévu pour cet usage, c'est **l'extrait officiel de trente
+secondes** que les plateformes publient elles-mêmes. C'est lui, et lui seul, qui
+est récupéré.
+
+La chaîne complète, d'un bout à l'autre :
+
+```
+téléphone (5G)          serveur                     navigateur du jukebox
+     │                     │                                │
+ lien collé ──────────────►│                                │
+                           ├─ titre + artiste               │
+                           │  (oEmbed, API iTunes/Deezer)   │
+                           ├─ extrait officiel 30 s         │
+                           ├─ pochette 600 px               │
+                           │  → tracks/Demandes/            │
+                           ├─ mise en file ────────────────►│
+                           │                                ├─ décodage audio
+                           │                                ├─ transcription
+                           │                                │  (Basic Pitch)
+                           │                                ├─ nettoyage LEGO
+                           │◄──────── partition .mid ───────┤
+                           │                                │
+                           └─ le morceau se joue à la partition ──────► piano
+```
+
+La transcription tourne **pendant que le morceau précédent joue encore** : le
+visiteur envoie son lien, écoute la fin de ce qui passe, et le sien enchaîne
+sans qu'on ait vu passer le calcul. Si le moteur de transcription n'est pas
+installé, rien ne casse : l'extrait se joue en audio seul et le piano bouge
+d'après le niveau sonore, exactement comme pour un MP3 sans partition.
+
+Ce qu'on entend alors, c'est **la partition, pas l'extrait** : un stand vient
+voir un piano jouer, pas écouter trente secondes de streaming. L'enregistrement
+reste à portée d'un bouton sous le titre, le temps d'une comparaison — et si la
+transcription se termine pendant que l'extrait passe, le piano prend le relais
+à la seconde où l'on en était.
+
+Le résultat n'est pas une réduction pour piano écrite par un musicien : c'est ce
+qu'un réseau de neurones entend dans un mixage complet, batterie et voix
+comprises. C'est imparfait, et c'est justement ce qui se raconte bien.
+
+### Applaudir
+
+Un bouton sur le téléphone, la LED du hub qui s'allume dans le piano. C'est la
+démonstration la plus courte du projet, et souvent celle qui marque le plus :
+entre le doigt et la diode, il y a un réseau mobile, un serveur, un flux
+d'événements et une trame Bluetooth.
+
+### Le mode borne
+
+Touche `S`, ou le bouton d'écran de la barre supérieure. Le jukebox devient une
+borne : plein écran, bibliothèque masquée, tout grossit, et surtout **la musique
+ne s'arrête jamais**. La répétition passe sur la liste entière, et un silence
+prolongé relance la lecture tout seul. C'est le filet qui évite qu'une fausse
+manœuvre laisse la table muette pour le reste de l'après-midi.
+
+Le mode ne se rétablit pas au rechargement de la page : le plein écran exige un
+geste, et une borne à moitié en mode borne serait pire que pas de borne.
+
+### Deux profils : portes ouvertes, salon
+
+Les deux situations n'ont presque rien en commun, et c'est ce qui justifie un
+profil plutôt qu'un réglage de plus.
+
+| | Portes ouvertes | Salon |
+|---|---|---|
+| Durée | Une demi-journée | Trois à cinq jours, 9 h par jour |
+| Le stand | Une équipe derrière la table | Parfois vide |
+| Le public | Vient pour l'école, s'arrête | Traverse un hall de deux cents exposants |
+| Le bruit | Une salle de cours | Un hall d'exposition |
+| L'écran | Support de conversation | Affiche qu'on doit lire à dix mètres |
+| Le moteur | Deux heures cumulées | Quarante heures dans la semaine |
+
+Le profil *Salon* allume donc quatre choses que les portes ouvertes n'exigent
+pas — chacune reste débrayable :
+
+- **L'écran d'appel.** Après une minute sans que personne touche à rien,
+  l'interface s'efface au profit d'une affiche plein écran : le titre, le code
+  QR en grand, et ce qui joue en ce moment. La musique, elle, continue — c'est
+  précisément ce qu'on veut donner à entendre pendant qu'on donne à lire.
+- **Le verrouillage.** Réglages, guide et raccourcis hors service : la borne ne
+  fait plus que jouer. On reprend la main par <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>U</kbd>
+  et un code à quatre chiffres. Sans cela, le premier curieux venu ouvre la
+  console LWP3 et envoie une trame au hasard au moteur.
+- **Le ménagement du moteur.** Après vingt minutes de moteur cumulées, le
+  jukebox marque quarante-cinq secondes de silence entre deux morceaux. Un
+  moteur Powered Up qui tourne neuf heures d'affilée chauffe et perd du couple ;
+  ces pauses lui coûtent moins d'une minute par heure d'antenne.
+- **Les prénoms éteints.** Personne ne surveillant l'écran en permanence, on
+  n'y affiche plus de texte saisi par le public.
+
+Dans les deux profils, l'écran ne s'éteint jamais : le verrou d'activation
+(*Screen Wake Lock*) interdit la mise en veille, et se redemande à chaque retour
+au premier plan — le navigateur le relâche dès que l'onglet passe derrière.
+
+### Ce qui tient sur la durée
+
+Une borne qui tourne neuf heures par jour rencontre ce qu'on ne voit jamais en
+dix minutes de mise au point. Trois garde-fous, tous vérifiables :
+
+- **Un chien de garde**, hors de la boucle d'affichage — c'est la condition pour
+  pouvoir constater sa mort. Boucle arrêtée depuis trente secondes : la page se
+  recharge. Lecture annoncée mais position figée depuis dix secondes : on passe
+  au morceau suivant. Il ne fait rien hors du mode borne, un rechargement
+  automatique pendant un réglage étant une agression.
+- **Les jetons du stand survivent au redémarrage.** Le code porté par le code QR
+  et le jeton de pilotage sont rangés dans `.stand-session.json` (ignoré par
+  git). Sans cela, un serveur relancé le deuxième jour rendrait caduc le
+  chevalet imprimé la veille, et les visiteurs scanneraient dans le vide. Les
+  variables `STAND_CODE` et `STAND_OPERATOR` restent prioritaires.
+- **Le jukebox revérifie l'identité du stand** à chaque reconnexion du flux
+  d'événements : adresse, code, droits. Un serveur qui repart ailleurs est suivi
+  sans qu'on ait à recharger la page.
+
+Et deux pannes qui ne se voient pas, désormais dites en clair sur la scène :
+
+- **Piles trop faibles.** Sous 8 %, un moteur Powered Up ne développe plus assez
+  de couple pour entraîner l'arbre à cames : il cale et bourdonne. Le jukebox le
+  coupe franchement et l'écrit, plutôt que de laisser un piano qui grogne devant
+  les visiteurs. Le son, lui, continue.
+- **Jeton de pilotage manquant.** Sans lui, les demandes des visiteurs
+  s'accumulent sans jamais être jouées — une panne parfaitement silencieuse, qui
+  peut durer une journée entière. Un bandeau rouge le dit sur la scène, et le
+  jeton se colle dans les réglages sans toucher à l'adresse.
+
+### Deux pianos
+
+Un second 21323 se connecte en plus du premier : *Réglages ⚙︎ → Deux pianos*.
+Il n'a pas de pilote à lui — c'est celui du premier qui lui envoie sa consigne
+dans le même cycle. Deux minuteurs indépendants se décaleraient, et deux pianos
+qui ondulent en léger différé font désordre.
+
+Reste la question intéressante : que joue le second ?
+
+Le répertoire à deux pianos existe — Rachmaninov, Poulenc, Lutosławski — mais il
+ne changerait rien ici. Le modèle n'a qu'un moteur entraînant tout l'arbre à
+cames : il ondule, il ne joue pas de notes. Deux modèles jouant deux parties
+écrites donneraient donc deux ondulations, et personne ne verrait la différence.
+
+Ce qui se voit, c'est de partager la partition **par registre** :
+
+| Répartition | Ce qu'on voit |
+|---|---|
+| **Miroir** | Les deux bougent à l'identique. Le plus spectaculaire de loin, et ça marche avec n'importe quoi. |
+| **Grave / aigu** | Chacun suit sa moitié de la partition, frontière au do central. Le piano des graves brasse par vagues lentes pendant que celui des aigus s'agite sur la mélodie. À dix mètres, on lit deux instruments qui se répondent. |
+| **Question / réponse** | Un piano par bloc de quatre mesures, à tour de rôle. L'autre s'arrête net. C'est le plus lisible des trois, et le plus lent. |
+
+Aucune partition spéciale n'est nécessaire : la séparation se fait à la volée,
+sur les notes du fichier MIDI. Les deux courbes d'activité sont normalisées
+séparément — sans quoi une main gauche discrète laisserait son piano immobile
+les trois quarts du temps.
+
+### La main sur le piano comme bouton
+
+Le 21323 embarque un capteur de distance qui voit passer un drapeau à chaque
+enfoncement de touche. Moteur à l'arrêt, il ne voit plus que ce qu'on lui met
+devant. Il devient alors le bouton le plus naturel du stand : *Réglages ⚙︎ →
+Mode borne → Démarrer quand on approche la main*, et le piano se met à jouer
+quand quelqu'un tend la main vers lui.
+
+Deux précautions, sans lesquelles c'est inutilisable : le déclencheur n'est armé
+que lorsque rien ne joue — en marche, ce sont les touches que le capteur voit
+défiler —, et il faut un front descendant franc suivi de quatre secondes de
+temps mort, faute de quoi une main posée déclencherait cinquante fois.
+
+### Deux rendus sonores
+
+Un hall d'exposition n'est pas une salle de cours, et la dynamique d'un piano y
+devient l'ennemie : tout ce qui est doux disparaît sous le bruit de fond.
+
+- **Salle** — le rendu naturel, toutes les nuances respectées.
+- **Hall** — coupe-bas à 95 Hz (les graves n'y font qu'embrouiller), compression
+  bien plus ferme, et rattrapage de niveau. Le morceau perd en finesse ce qu'il
+  gagne en portée. C'est un compromis assumé, et il se choisit.
+
+### L'affiche se rédige
+
+Le titre et le sous-titre de l'écran d'appel s'écrivent dans les réglages : un
+message par événement, avec le numéro de hall et d'allée s'il le faut. Une
+option ajoute le **palmarès du jour** — les trois morceaux les plus demandés,
+qui n'apparaissent qu'à partir du moment où l'un d'eux est repassé. Dans un
+hall, voir que quarante personnes ont déjà choisi donne envie de choisir à son
+tour.
+
+### Alimenter le hub
+
+C'est la seule limite du projet qui ne se règle pas dans le code, et c'est la
+première qu'on rencontre sur un salon.
+
+Le hub Powered Up tourne sur **six piles AAA**. Le moteur qui entraîne l'arbre à
+cames consomme beaucoup plus que l'électronique du hub : en lecture continue,
+compte **trois à quatre heures** par jeu de piles alcalines. Une journée de
+salon en demande donc deux à trois, et une semaine complète une quinzaine.
+
+Trois façons de s'en sortir, de la plus simple à la meilleure :
+
+1. **Des accumulateurs NiMH rechargeables** et deux jeux qui tournent. Attention :
+   1,2 V par élément au lieu de 1,5 V, soit 7,2 V au lieu de 9 V — le moteur perd
+   du couple, et il faut remonter la puissance minimale dans les réglages.
+2. **La batterie rechargeable LEGO 88015**, qui remplace le compartiment à piles.
+   C'est la solution officielle, et le hub sait dire qu'il en a une (*Réglages ⚙︎
+   → Le hub → Piles*).
+3. **Un bloc secteur 9 V** à la place des piles, via un adaptateur factice AAA.
+   C'est ce qui tient une semaine sans y penser — mais un montage maison sur du
+   matériel LEGO, à faire en connaissance de cause : polarité et tension doivent
+   être justes, et le hub n'a aucune protection prévue pour ça.
+
+Quelle que soit la solution, le jukebox surveille la charge : sous 8 %, il coupe
+le moteur et le dit à l'écran. Un moteur qui n'a plus assez de couple ne
+s'arrête pas, il cale et bourdonne — et ça s'entend de loin.
+
+### Le chevalet à imprimer
+
+*Réglages ⚙︎ → Mode borne → Fiche à imprimer*, ou directement `/print`. Une page
+A5 en noir sur blanc, à plier et poser à côté du piano : le code QR en grand,
+trois étapes, et l'adresse en clair pour qui n'arrive pas à scanner. Le code y
+est celui **en service au moment de l'impression** — c'est le seul moyen d'éviter
+le chevalet périmé qui traîne sur la table depuis la veille.
+
+### Le bilan du stand
+
+*Réglages ⚙︎ → Bilan du stand* : morceaux joués, part demandée par les visiteurs,
+temps d'antenne, temps de moteur, applaudissements. Copiable en une ligne ou
+enregistrable en JSON, journal des morceaux compris. Compté dans la page, jamais
+envoyé nulle part — c'est de quoi répondre, le lundi matin, à la question « ça a
+servi à quoi, ce stand ? ».
+
+
+### Le clavier jouable
+
+Touche `P`. Les touches à l'écran deviennent un instrument — à la souris, au
+doigt, ou au clavier de l'ordinateur — et **le modèle LEGO suit**. Le moteur
+reçoit exactement la même consigne que pendant un morceau, calculée par le même
+pilote : c'est la façon la plus directe de faire comprendre à un visiteur ce que
+le programme fait réellement au matériel.
+
+Les touches physiques sont relevées par leur position (`event.code`), pas par la
+lettre imprimée dessus : la cartographie est donc la même en AZERTY, en QWERTY
+et en QWERTZ. Tant que le clavier est jouable, les raccourcis d'une seule lettre
+se taisent — sauf `P`, qui reste la sortie de secours.
+
+### Ce qui est exposé, et à qui
+
+Publier le stand sur Internet change la nature du serveur : autant savoir
+exactement ce qui s'ouvre.
+
+- **Le code du stand** voyage dans l'adresse du code QR. Sans lui, aucune
+  demande n'est acceptée. Le visiteur ne le voit jamais, il scanne ; il tient
+  simplement à distance ceux qui trouveraient l'adresse sans être devant le
+  piano.
+- **Le jeton de pilotage** protège tout ce qui commande le stand — passer au
+  morceau suivant, vider la file, écrire une partition dans `tracks/`. Il est
+  affiché au lancement du serveur, et se donne une fois au jukebox dans son
+  adresse : `…/?op=…`. Quand le serveur tourne sur la machine du stand sans
+  proxy, la boucle locale suffit et le jeton n'est pas demandé.
+- **Une limitation de débit** par adresse IP, et trois demandes simultanées au
+  plus par téléphone. Elle vise les visiteurs, et eux seuls : elle ne s'applique
+  ni quand le serveur n'écoute que la boucle locale — il n'y a alors personne
+  d'autre à ménager —, ni au poste du stand, qui publie ce qu'il joue toutes les
+  deux secondes et épuiserait son propre quota.
+- **Les prénoms** saisis par les visiteurs sont filtrés — lettres uniquement,
+  quatorze caractères — mais restent du texte public affiché sur un grand
+  écran. Le réglage qui les affiche se décoche.
+
+Les deux jetons se fixent au lancement si l'on veut les retrouver d'un jour à
+l'autre :
+
+```bash
+PUBLIC_URL=https://piano.epitech.example STAND_CODE=JPO26 STAND_OPERATOR=… npm start
+```
 
 ---
 

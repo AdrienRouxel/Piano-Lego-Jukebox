@@ -60,17 +60,124 @@ function renderInline(text) {
     // [texte](cible)
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, href) => link(href, label))
     // <https://exemple.fr>
-    .replace(/&lt;((?:https?|mailto):[^\s&]+)&gt;/g, (_, href) => link(href, href))
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    // L'étoile ouvrante doit coller à son texte, la fermante aussi : sans quoi
-    // « 3 * 4 * 5 » passerait pour de l'italique.
-    .replace(/(^|[\s(])\*(\S|\S[^*\n]*?\S)\*/g, '$1<em>$2</em>')
-    .replace(/(^|[\s(])_(\S|\S[^_\n]*?\S)_/g, '$1<em>$2</em>');
+    .replace(/&lt;((?:https?|mailto):[^\s&]+)&gt;/g, (_, href) => link(href, href));
+
+  html = emphasis(html);
 
   for (const [pattern, replacement] of HTML_WHITELIST) html = html.replace(pattern, replacement);
 
   const restore = new RegExp(`${SENTINEL}(\\d+)${SENTINEL}`, 'g');
   return html.replace(restore, (_, index) => `<code>${codes[Number(index)]}</code>`);
+}
+
+/* --- Emphase ------------------------------------------------------ */
+
+/**
+ * Gras et italique, imbrications comprises.
+ *
+ * Un simple remplacement par expression régulière ne sait pas traiter
+ * `**gras *et italique***` : la fermeture est un unique groupe de trois
+ * étoiles qu'il faut répartir entre les deux balises. On relève donc les
+ * groupes de délimiteurs, puis on les apparie du plus proche au plus
+ * lointain — la règle de CommonMark, réduite à ce dont la documentation a
+ * besoin.
+ */
+function emphasis(text) {
+  const tokens = [];
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i];
+
+    // Les balises déjà produites (liens) sont recopiées telles quelles :
+    // une étoile dans une adresse ne doit pas devenir de l'italique.
+    if (char === '<') {
+      const end = text.indexOf('>', i);
+      const stop = end === -1 ? text.length : end + 1;
+      tokens.push({ text: text.slice(i, stop) });
+      i = stop;
+      continue;
+    }
+
+    if (char === '*' || char === '_') {
+      let j = i;
+      while (text[j] === char) j += 1;
+      tokens.push(delimiterRun(text, char, i, j));
+      i = j;
+      continue;
+    }
+
+    let j = i;
+    while (j < text.length && text[j] !== '*' && text[j] !== '_' && text[j] !== '<') j += 1;
+    tokens.push({ text: text.slice(i, j) });
+    i = j;
+  }
+
+  pairDelimiters(tokens);
+  return tokens
+    .map((token) => (token.text !== undefined ? token.text : token.opens + token.char.repeat(token.count) + token.closes))
+    .join('');
+}
+
+const isPunctuation = (char) => /[\p{P}\p{S}]/u.test(char);
+
+/**
+ * Décrit un groupe d'étoiles ou de tirets bas : peut-il ouvrir une emphase,
+ * la fermer, les deux ? Tout se joue sur les caractères qui l'encadrent —
+ * c'est ce qui distingue `*italique*` d'une multiplication `3 * 4`.
+ */
+function delimiterRun(text, char, start, end) {
+  const before = text[start - 1] ?? ' ';
+  const after = text[end] ?? ' ';
+  const spaceBefore = /\s/.test(before);
+  const spaceAfter = /\s/.test(after);
+  const punctBefore = isPunctuation(before);
+  const punctAfter = isPunctuation(after);
+
+  // « collé à gauche » / « collé à droite » du texte qu'il encadre.
+  const left = !spaceAfter && (!punctAfter || spaceBefore || punctBefore);
+  const right = !spaceBefore && (!punctBefore || spaceAfter || punctAfter);
+
+  return {
+    char,
+    count: end - start,
+    // Le tiret bas est plus strict que l'étoile : sans quoi les underscores
+    // d'un identifiant comme nom_de_variable deviendraient de l'italique.
+    canOpen: char === '*' ? left : left && (!right || punctBefore),
+    canClose: char === '*' ? right : right && (!left || punctAfter),
+    opens: '',
+    closes: '',
+  };
+}
+
+/** Apparie chaque fermeture avec l'ouverture la plus proche, et consomme. */
+function pairDelimiters(tokens) {
+  for (let close = 0; close < tokens.length; close += 1) {
+    const closer = tokens[close];
+    if (closer.text !== undefined) continue;
+
+    while (closer.canClose && closer.count) {
+      let opener = null;
+      for (let open = close - 1; open >= 0; open -= 1) {
+        const candidate = tokens[open];
+        if (candidate.text !== undefined) continue;
+        if (candidate.char === closer.char && candidate.canOpen && candidate.count) {
+          opener = candidate;
+          break;
+        }
+      }
+      if (!opener) break;
+
+      // Deux délimiteurs d'un coup si les deux côtés en ont assez : c'est du gras.
+      const used = Math.min(2, opener.count, closer.count);
+      const tag = used === 2 ? 'strong' : 'em';
+      opener.count -= used;
+      closer.count -= used;
+      // Les appariements suivants sont plus extérieurs : l'ouverture se
+      // place devant les précédentes, la fermeture derrière.
+      opener.opens = `<${tag}>` + opener.opens;
+      closer.closes += `</${tag}>`;
+    }
+  }
 }
 
 /**

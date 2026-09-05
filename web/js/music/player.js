@@ -5,8 +5,10 @@
  * Trois cas de figure, selon les fichiers déposés dans `tracks/` :
  *
  *   MIDI seul         → les notes sont synthétisées ; horloge = contexte audio.
- *   MIDI + audio      → l'audio est joué tel quel, le MIDI ne sert plus qu'à
- *                       piloter les touches et l'affichage ; horloge = <audio>.
+ *   MIDI + audio      → la partition l'emporte : c'est un piano qu'on est venu
+ *                       écouter, pas un extrait de plateforme. L'enregistrement
+ *                       reste chargé, et `setSource('audio')` bascule dessus
+ *                       sans recharger ; horloge = <audio> dans ce cas.
  *   audio seul        → aucune partition : la chorégraphie est déduite en direct
  *                       du niveau sonore ; horloge = <audio>.
  */
@@ -17,6 +19,9 @@ import { buildActivityCurve, LiveActivityMeter } from './choreography.js';
 
 /** Fenêtre d'anticipation de l'ordonnanceur de notes (secondes). */
 const SCHEDULE_AHEAD = 0.2;
+
+/** Do central : la frontière entre les deux mains, et entre les deux pianos. */
+const SPLIT_PITCH = 60;
 
 export class Player extends EventTarget {
   constructor({ useLocalSamples = false } = {}) {
@@ -30,7 +35,20 @@ export class Player extends EventTarget {
     this.track = null;
     this.midi = null;
     this.mode = 'midi'; // midi | audio | audio+midi
+    /**
+     * Quand un morceau a les deux, ce qu'on entend : « midi » (la partition
+     * synthétisée) ou « audio » (l'enregistrement d'origine). Remis à « midi »
+     * à chaque morceau : la bascule est un écart, pas un réglage.
+     */
+    this.preferred = 'midi';
     this.activity = null;
+    /**
+     * Les deux moitiés de la partition, pour le mode « deux pianos ».
+     * La frontière tombe au do central : c'est là que les deux mains se
+     * séparent dans l'écriture pianistique courante.
+     */
+    this.activityLow = null;
+    this.activityHigh = null;
 
     this.audio = new Audio();
     this.audio.preload = 'auto';
@@ -78,15 +96,20 @@ export class Player extends EventTarget {
 
     // Un piano peut empiler dix notes : sans limiteur, les accords saturent.
     this.limiter = this.context.createDynamicsCompressor();
-    this.limiter.threshold.value = -8;
-    this.limiter.knee.value = 6;
-    this.limiter.ratio.value = 8;
-    this.limiter.attack.value = 0.004;
-    this.limiter.release.value = 0.18;
 
-    this.master.connect(this.limiter);
-    this.limiter.connect(this.analyser);
+    // Coupe-bas, et rattrapage de niveau après le limiteur : les deux servent
+    // au profil « hall » et restent transparents le reste du temps.
+    this.lowCut = this.context.createBiquadFilter();
+    this.lowCut.type = 'highpass';
+    this.makeup = this.context.createGain();
+
+    this.master.connect(this.lowCut);
+    this.lowCut.connect(this.limiter);
+    this.limiter.connect(this.makeup);
+    this.makeup.connect(this.analyser);
     this.analyser.connect(this.context.destination);
+    this.audioProfile = 'salle';
+    this.setAudioProfile(this.audioProfile);
 
     this.sampler = new PianoSampler(this.context, { useLocalSamples: this.useLocalSamples });
     this.sampler.connect(this.master);
@@ -99,6 +122,36 @@ export class Player extends EventTarget {
     const mode = await this.sampler.load(onSampleProgress);
     this.dispatchEvent(new CustomEvent('samplesloaded', { detail: { mode } }));
     return mode;
+  }
+
+  /**
+   * Deux façons de sonner, selon l'endroit.
+   *
+   *   salle — le rendu naturel : on entend les nuances, la dynamique d'un
+   *           piano est respectée. C'est ce qu'on veut dans une salle de cours ;
+   *   hall  — dans un hall d'exposition, la dynamique est l'ennemie : tout ce
+   *           qui est doux disparaît sous le bruit de fond. On coupe donc les
+   *           graves qui ne font qu'embrouiller, on comprime beaucoup plus
+   *           fort, et on rattrape le niveau. Le morceau perd en finesse ce
+   *           qu'il gagne en portée — c'est un compromis assumé.
+   *
+   * @param {'salle'|'hall'} name
+   */
+  setAudioProfile(name) {
+    if (!this.context) return;
+    const hall = name === 'hall';
+    this.audioProfile = hall ? 'hall' : 'salle';
+    const at = this.context.currentTime;
+    const glide = 0.08;
+
+    this.lowCut.frequency.setTargetAtTime(hall ? 95 : 20, at, glide);
+    this.limiter.threshold.setTargetAtTime(hall ? -22 : -8, at, glide);
+    this.limiter.knee.setTargetAtTime(hall ? 3 : 6, at, glide);
+    this.limiter.ratio.setTargetAtTime(hall ? 12 : 8, at, glide);
+    this.limiter.attack.setTargetAtTime(hall ? 0.002 : 0.004, at, glide);
+    this.limiter.release.setTargetAtTime(hall ? 0.12 : 0.18, at, glide);
+    // +5 dB environ : de quoi rendre au signal ce que la compression lui a pris.
+    this.makeup.gain.setTargetAtTime(hall ? 1.8 : 1, at, glide);
   }
 
   set volume(value) {
@@ -115,27 +168,110 @@ export class Player extends EventTarget {
     this.track = track;
     this.midi = null;
     this.activity = null;
+    this.activityLow = null;
+    this.activityHigh = null;
 
     if (track.midiUrl) {
       const response = await fetch(track.midiUrl);
       if (!response.ok) throw new Error(`Impossible de lire ${track.midiUrl} (HTTP ${response.status}).`);
       this.midi = parseMidi(await response.arrayBuffer());
       this.activity = buildActivityCurve(this.midi);
+      this.activityLow = buildActivityCurve(this.midi, { to: SPLIT_PITCH - 1 });
+      this.activityHigh = buildActivityCurve(this.midi, { from: SPLIT_PITCH });
     }
 
+    // Un nouveau morceau repart de la partition, même si le précédent était
+    // écouté en enregistrement.
+    this.preferred = 'midi';
+
     if (track.audioUrl) {
-      this.mode = this.midi ? 'audio+midi' : 'audio';
+      // L'enregistrement est chargé dans tous les cas : c'est ce qui permet à
+      // `setSource()` de basculer plus tard sans refaire un aller-retour.
       await this._loadAudio(track.audioUrl);
-      this.duration = Number.isFinite(this.audio.duration) ? this.audio.duration : this.midi?.duration ?? 0;
-      if (!this.midi) this.activity = this.liveMeter;
+    } else {
+      this.audio.removeAttribute('src');
+    }
+
+    if (this.midi) {
+      this.mode = 'midi';
+      this.duration = this.midi.duration;
+    } else if (track.audioUrl) {
+      this.mode = 'audio';
+      this.duration = Number.isFinite(this.audio.duration) ? this.audio.duration : 0;
+      this.activity = this.liveMeter;
     } else {
       this.mode = 'midi';
-      this.audio.removeAttribute('src');
-      this.duration = this.midi?.duration ?? 0;
+      this.duration = 0;
     }
 
     this.dispatchEvent(new CustomEvent('loaded', { detail: { track, mode: this.mode, midi: this.midi } }));
     return this;
+  }
+
+  /**
+   * Décharge le morceau en cours : plus rien à jouer, plus rien à afficher.
+   * Utile quand le fichier disparaît du disque sous les pieds du lecteur.
+   */
+  unload() {
+    this.stop();
+    this.track = null;
+    this.midi = null;
+    this.activity = null;
+    this.activityLow = null;
+    this.activityHigh = null;
+    this.duration = 0;
+    this.mode = 'midi';
+    this.preferred = 'midi';
+    this.audio.removeAttribute('src');
+    this.dispatchEvent(new CustomEvent('unloaded', {}));
+  }
+
+  /** Le morceau en cours a-t-il les deux sources, donc un choix à offrir ? */
+  get hasBothSources() {
+    return Boolean(this.midi && this.track?.audioUrl);
+  }
+
+  /**
+   * Bascule entre la partition synthétisée et l'enregistrement d'origine, à la
+   * même seconde et sans recharger quoi que ce soit. Sans effet si le morceau
+   * n'a qu'une source : il n'y a alors rien à choisir.
+   *
+   * @param {'midi'|'audio'} kind
+   * @returns {string} le mode effectif après bascule
+   */
+  setSource(kind) {
+    const want = kind === 'audio' ? 'audio' : 'midi';
+    this.preferred = want;
+    if (!this.hasBothSources) return this.mode;
+
+    const next = want === 'audio' ? 'audio+midi' : 'midi';
+    if (next === this.mode) return this.mode;
+
+    // La position se lit avec l'ancien mode, et s'écrit avec le nouveau :
+    // l'ordre des trois lignes qui suivent n'est pas indifférent.
+    const position = this.currentTime;
+    const wasPlaying = this.isPlaying;
+    if (wasPlaying) this.pause();
+
+    this.mode = next;
+    this.duration =
+      next === 'midi'
+        ? this.midi.duration
+        : Number.isFinite(this.audio.duration)
+          ? this.audio.duration
+          : this.midi.duration;
+
+    this._offset = Math.max(0, Math.min(this.duration, position));
+    this._resetSchedule(this._offset);
+    if (next !== 'midi') {
+      try {
+        this.audio.currentTime = this._offset;
+      } catch { /* source pas encore prête : `play()` repositionnera */ }
+    }
+
+    this.dispatchEvent(new CustomEvent('source', { detail: { mode: this.mode, source: want } }));
+    if (wasPlaying) this.play();
+    return this.mode;
   }
 
   _loadAudio(url) {

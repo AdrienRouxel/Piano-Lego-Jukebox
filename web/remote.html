@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Choisis un morceau — Piano LEGO Epitech</title>
+  <meta name="description" content="Télécommande du jukebox LEGO Grand Piano : choisis le morceau que le piano va jouer." />
+  <meta name="theme-color" content="#0b0e1a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎹</text></svg>" />
+  <link rel="stylesheet" href="remote.css" />
+</head>
+<body>
+  <header class="top">
+    <p class="kicker">Piano LEGO · Epitech</p>
+    <h1>Choisis un morceau</h1>
+    <p class="lede">Le piano en briques le jouera pour de vrai, touches comprises.</p>
+  </header>
+
+  <section class="now" id="now" aria-live="polite">
+    <p class="now-label">En ce moment</p>
+    <p class="now-title" id="now-title">Le jukebox n’a pas encore démarré</p>
+    <p class="now-artist" id="now-artist"></p>
+    <div class="now-bar" aria-hidden="true"><span id="now-fill"></span></div>
+  </section>
+
+  <div class="cheer-row">
+    <button class="cheer" id="cheer" type="button">
+      <span class="cheer-icon" aria-hidden="true">👏</span>
+      <span class="cheer-label">Applaudir</span>
+      <span class="cheer-count" id="cheer-count"></span>
+    </button>
+    <p class="cheer-hint">La LED du piano s’allume à chaque applaudissement.</p>
+  </div>
+
+  <section class="queue" id="queue-block" hidden>
+    <h2>À suivre <span class="count" id="queue-count"></span></h2>
+    <ol class="queue-list" id="queue-list"></ol>
+  </section>
+
+  <section class="link-box">
+    <h2>Ta musique à toi</h2>
+    <p class="link-lede">Colle un lien <strong>Spotify</strong>, <strong>Apple&nbsp;Music</strong> ou <strong>Deezer</strong> — ou tape simplement un titre. Le piano jouera l’extrait officiel de 30&nbsp;secondes, converti en partition.</p>
+    <form class="link-form" id="link-form">
+      <input type="text" id="link" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="https://open.spotify.com/track/…" aria-label="Lien ou titre du morceau" />
+      <button type="submit" id="link-send">Envoyer</button>
+    </form>
+    <p class="link-state" id="link-state" hidden></p>
+  </section>
+
+  <section class="picker">
+    <label class="name-field">
+      <span>Ton prénom <small>facultatif — il s’affichera sur l’écran du stand</small></span>
+      <input type="text" id="name" maxlength="14" placeholder="Léa" autocomplete="given-name" spellcheck="false" />
+    </label>
+
+    <div class="search-row">
+      <input type="search" id="search" placeholder="Chercher un morceau…" aria-label="Chercher un morceau" autocomplete="off" />
+    </div>
+    <div class="chips" id="chips" role="tablist" aria-label="Catégories"></div>
+    <div class="tracks" id="tracks"></div>
+    <p class="empty" id="empty" hidden></p>
+  </section>
+
+  <p class="locked" id="locked" hidden></p>
+
+  <footer class="foot">
+    <p>Ce piano est un <strong>LEGO Ideas Grand Piano 21323</strong>. Il n’a ni haut-parleur, ni électronique de série : un moteur Powered Up, du Bluetooth, et du code écrit à Epitech.</p>
+    <p class="foot-small">Aucune donnée n’est collectée. Ferme la page quand tu as fini.</p>
+  </footer>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/remote.js"></script>
+</body>
+</html>
