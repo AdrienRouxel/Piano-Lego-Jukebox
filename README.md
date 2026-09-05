@@ -11,15 +11,24 @@ un serveur Node de 250 lignes et une page web.
 npm start          # puis ouvrir http://localhost:4173 dans Chrome ou Edge
 ```
 
+> 📖 **Première fois ?** Le [**guide pas à pas**](docs/guide.md) décrit chaque
+> geste, sur le piano comme sur l'ordinateur, et ce que tu dois voir à chaque
+> étape. Ce README-ci explique plutôt *comment ça marche*.
+
 ---
 
 ## Sommaire
 
+- [**Guide pas à pas** — connecter le piano et se servir de l'application](docs/guide.md)
 - [Ce que le piano sait faire (et ce qu'il ne sait pas faire)](#ce-que-le-piano-sait-faire-et-ce-quil-ne-sait-pas-faire)
 - [Démarrage](#démarrage)
 - [Ajouter de la musique : MIDI ou MP3 ?](#ajouter-de-la-musique--midi-ou-mp3-)
 - [Comment ça marche](#comment-ça-marche)
+- [Thèmes](#thèmes)
+- [Geek mode](#geek-mode)
+- [Mise en route](#mise-en-route)
 - [Régler le mouvement des touches](#régler-le-mouvement-des-touches)
+- [Le panneau matériel](#le-panneau-matériel)
 - [En cas de problème](#en-cas-de-problème)
 - [Étape 2 — micrologiciel personnalisé](#étape-2--micrologiciel-personnalisé)
 - [Crédits et licences](#crédits-et-licences)
@@ -86,6 +95,9 @@ démonstration y sont écrits (des œuvres du domaine public, générées locale
 rien n'est téléchargé).
 
 ### Connecter le piano
+
+*Version détaillée, avec ce que tu dois voir à chaque étape :
+[guide pas à pas](docs/guide.md#étape-4--connecter-le-piano).*
 
 1. Mets 6 piles AAA dans le hub, à l'intérieur du piano.
 2. **Appuie brièvement sur le bouton vert du hub** : il clignote en blanc, signe
@@ -181,13 +193,18 @@ server.mjs                      Serveur statique + inventaire de tracks/ (aucune
 scripts/
   make-demo-tracks.mjs          Écrit un fichier MIDI standard à partir de partitions codées en dur
   fetch-samples.mjs             Copie les échantillons de piano en local
+  test-protocol.mjs             Vérifie la couche protocole contre la spécification (npm test)
 web/
-  index.html  styles.css        L'interface
+  index.html  styles.css        L'interface (styles.css porte les deux thèmes)
+  assets/
+    brand/                      Logo Epitech et polices de la charte (Anton, IBM Plex Sans)
   js/
     main.js                     Assemblage : bibliothèque, lecteur, hub, interface
     ui.js                       Claviers, pochettes, notifications, journal
+    hubtools.js                 Panneaux matériel : infos, essais, capteur, console LWP3
+    geek.js                     Panneau de télémétrie temps réel (« Geek mode »)
     lego/
-      protocol.js               LEGO Wireless Protocol 3.0 — encodage des messages
+      protocol.js               LEGO Wireless Protocol 3.0 — encodage et décodage complets
       hub.js                    Connexion Web Bluetooth, découverte des ports, file d'écriture
     music/
       midi.js                   Lecteur de fichiers MIDI standard (formats 0 et 1), écrit à la main
@@ -204,13 +221,27 @@ publié par LEGO. Tout passe par une seule caractéristique BLE :
 - service `00001623-1212-efde-1623-785feabcd123`
 - caractéristique `00001624-1212-efde-1623-785feabcd123`
 
-Un message vaut `[longueur, 0x00, type, …]`. Les trois qui nous intéressent :
+Un message vaut `[longueur, 0x00, type, …]`. Voici ceux que le projet émet :
 
 | Intention | Octets |
 |---|---|
 | Puissance moteur | `08 00 81 <port> 10 51 00 <puissance>` |
+| Freinage actif | `08 00 81 <port> 11 51 00 7F` |
 | Écouter un capteur | `0A 00 41 <port> <mode> 01 00 00 00 01` |
 | Couleur de la LED | `0A 00 81 32 10 51 01 <r> <g> <b>` |
+| Lire une propriété | `05 00 01 <propriété> 05` |
+| Renommer le hub | `0A 00 01 01 01 <ascii>` |
+| S'abonner à une alerte | `05 00 03 <alerte> 01` |
+| Interroger un port | `05 00 21 <port> 01` |
+| Détailler un mode | `06 00 22 <port> <mode> <info>` |
+| Lecture combinée | `05 00 42 <port> 02` puis `06 00 42 <port> 01 <mode·jeu>` |
+| Éteindre le hub | `04 00 02 01` |
+
+Dans l'autre sens, `protocol.js` **décode tout** : les 24 types de messages, les
+15 propriétés du hub, les alertes, les codes d'erreur, les accusés de réception,
+les capacités des ports et le détail de leurs modes. C'est ce qui alimente la
+console (voir plus bas). `npm test` vérifie cet encodage octet par octet contre
+la spécification LEGO, sans matériel.
 
 Le code **ne suppose rien** du câblage : au moment de la connexion, le hub
 annonce spontanément ce qui est branché sur chaque port (message *Hub Attached
@@ -253,6 +284,77 @@ arrière-plan — mais garde quand même la page visible pour un rendu impeccabl
 
 ---
 
+## Thèmes
+
+Deux habillages, au choix dans le tiroir de réglages (⚙︎ → **Apparence**) ; le
+choix est conservé d'une session à l'autre.
+
+- **Piano** — l'habillage par défaut : bois sombre, laiton, touches ivoire.
+- **Epitech** — la charte graphique de l'école : bleu Epitech `#013afb`, fond
+  clair posé sur le neutre *Drift*, triptyque *Tech* / *Together* / *Tomorrow*
+  pour les états, titres en **Anton** et texte en **IBM Plex Sans**. Les angles
+  sont francs, la grille « blueprint » remplace le grain, et l'underscore
+  ponctue les titres, comme dans la charte.
+
+Techniquement, toute la couleur de `web/styles.css` passe par des variables CSS.
+Un thème est donc un simple bloc `[data-theme="…"]` qui les redéfinit ;
+l'attribut est posé sur `<html>` par un court script dans le `<head>`, avant le
+premier rendu, pour éviter que la page clignote au chargement.
+
+Les polices et le logo sont servis depuis `web/assets/brand/` : rien n'est
+téléchargé à l'exécution, l'application reste utilisable hors connexion.
+
+---
+
+## Geek mode
+
+Un interrupteur dans le tiroir de réglages (⚙︎ → **Démonstration**), ou la touche
+<kbd>G</kbd>. Il ouvre en bas de l'écran un bandeau de télémétrie qui montre ce
+qui se passe sous l'interface — pensé pour les journées portes ouvertes, où la
+question « mais concrètement, il y a quoi derrière ? » revient à chaque visite.
+
+Cinq cartes, plus le flux Bluetooth brut :
+
+| Carte | Ce qu'on y voit |
+| --- | --- |
+| **Chaîne audio · DSP** | Spectre FFT en direct, fréquence d'échantillonnage, taille de fenêtre et résolution spectrale, latence matérielle (`baseLatency` + `outputLatency`), niveau RMS et crête en dBFS, centroïde spectral, réduction du limiteur, polyphonie |
+| **Ordonnanceur · partition** | Horloge de référence, position au milliseconde, fenêtre d'anticipation, cycles d'ordonnancement, notes programmées et manquées, dérive entre l'horloge audio et celle du système, tempo, mesure et temps en cours, densité de notes |
+| **Chorégraphie · moteur** | Activité normalisée, accent, consigne PWM, plage de puissance, avance appliquée, cadence et gigue du minuteur du pilote, vitesse estimée de l'arbre à cames, capteur de distance |
+| **Liaison Bluetooth LE** | Service GATT, micrologiciel et version du protocole, RSSI, batterie, tension et courant mesurés par le hub, trames émises et reçues, débit, latence d'écriture GATT, profondeur de la file |
+| **Rendu · machine** | Images par seconde, temps par image (moyenne et p95), images longues, tas JavaScript, cœurs logiques, mémoire, zone d'affichage |
+| **Flux Bluetooth brut** | Chaque message échangé avec le hub, en hexadécimal, suivi de sa traduction selon le LEGO Wireless Protocol 3.0 |
+
+Tout y est **mesuré**, jamais simulé : chaque valeur vient d'une API du
+navigateur (Web Audio, Web Bluetooth, Performance) ou d'un compteur incrémenté
+dans le code. La seule grandeur déduite d'un modèle — la vitesse de l'arbre à
+cames — est annoncée comme une estimation.
+
+Le panneau coûte environ **0,15 ms par image** quand il est ouvert — moins de
+1 % du budget d'une image à 60 Hz — et rien du tout quand il est fermé : la
+boucle de rafraîchissement sort à sa première ligne.
+
+---
+
+## Mise en route
+
+Une option facultative, dans le tiroir de réglages (⚙︎ → **Mise en route**),
+désactivée au départ. Une fois cochée, un chef d'orchestre entre à l'écran
+avant chaque morceau et demande au piano « Est-ce que tu es prêt ? ». Le piano
+répond en faisant sonner quelques touches — un arpège de do majeur puis un
+accord —, le chef écoute, puis donne le départ : « Alors, c'est parti ! », et
+la musique démarre.
+
+La réponse sort des haut-parleurs de l'ordinateur, connecté ou non : c'est lui
+qui joue, ici comme pendant un morceau. Quand le hub est là, l'arbre à cames
+tourne en plus au rythme de l'arpège, avec les mêmes puissances minimale et
+maximale que le reste. Sans hub, seul le clavier « modèle LEGO » à l'écran
+bouge — la scène est identique.
+
+Un clic n'importe où passe l'introduction et lance la musique tout de suite ;
+`Échap` l'annule sans rien jouer.
+
+---
+
 ## Régler le mouvement des touches
 
 Bouton ⚙︎ en haut à droite. Tous les réglages sont conservés d'une session à
@@ -267,6 +369,8 @@ pour être réglé à l'oreille et à l'œil, piano en marche.
 | **Accent sur les temps** | coup de fouet sur chaque temps. À 0, le mouvement suit seulement la densité. | 35 % |
 | **Sensibilité** | plus c'est haut, plus les nuances douces font déjà bouger les touches. | 65 % |
 | **Arrêter pendant les silences** | coupe franchement le moteur. | activé |
+| **Freiner en fin de morceau** | freinage actif plutôt que roue libre : l'arbre s'arrête net. | activé |
+| **Démarrage progressif** | une rampe de 0,4 s au lancement, pour éviter l'à-coup. | activé |
 | **Faire pulser la LED** | la LED du hub suit l'intensité. | activé |
 | **Inverser le sens** | si l'arbre force ou grince dans un sens. | désactivé |
 
@@ -279,6 +383,83 @@ suivant, `Échap` ferme les réglages.
 
 Pour mettre au point plus finement, `window.jukebox` expose `player`, `driver`,
 `hub` et `settings` dans la console du navigateur.
+
+---
+
+## Le panneau matériel
+
+Le tiroir de réglages contient, sous les commandes de chorégraphie, tout ce que
+le hub sait faire d'autre. Rien n'est indispensable pour écouter de la musique —
+c'est là pour régler, diagnostiquer et comprendre.
+
+### Essai du moteur
+
+Un curseur de puissance, plus quatre commandes :
+
+- **Roue libre** — coupe l'alimentation, l'arbre finit sur son élan.
+- **Freiner** — freinage actif : l'arbre s'arrête net. Le hub confirme
+  l'exécution, et le résultat s'affiche sous les boutons.
+- **Rampe 0 → max** — monte en régime sur deux secondes, pour voir si le
+  démarrage est franc ou si le moteur peine.
+- **Séquence d'essai** — enchaîne démarrage doux, palier lent, silence, palier
+  rapide et arrêt : de quoi juger d'un coup d'œil si tes réglages tiennent.
+
+Lancer un essai met la lecture en pause : les deux ne peuvent pas se disputer la
+consigne moteur.
+
+### Le hub
+
+Tout ce que la brique sait dire d'elle-même : nom, versions du micrologiciel et
+du matériel, fabricant, version du protocole, adresse MAC, type de piles, charge
+et puissance du signal. On peut aussi :
+
+- **la renommer** (14 caractères, gardés dans sa mémoire — le nouveau nom
+  apparaîtra aussi dans l'application LEGO) ;
+- **l'éteindre à distance** — il faudra rappuyer sur le bouton vert ;
+- **se reconnecter tout seul**. Si la liaison tombe, le projet réessaie six fois
+  avec un délai croissant, jusqu'à douze tentatives. Et au chargement de la page,
+  si le navigateur a gardé l'autorisation d'un hub déjà utilisé, la liaison se
+  rétablit sans repasser par le sélecteur.
+
+Quatre pastilles suivent les **alertes matérielles** du hub : tension basse,
+courant élevé, signal faible, surpuissance. Elles passent au rouge quand le hub
+les déclenche, et une notification s'affiche.
+
+### Capteur de touche
+
+Le capteur de distance a deux modes, et on peut basculer de l'un à l'autre :
+
+- **Distance** — 0 (touche enfoncée, drapeau collé au capteur) à 10 (rien devant) ;
+- **Comptage** — le nombre de passages depuis l'allumage du hub. Utile pour
+  savoir combien de fois les touches ont bougé pendant un morceau.
+
+Un bouton tente en plus la **lecture combinée** des deux modes dans une même
+notification. C'est expérimental : tous les capteurs ne l'acceptent pas, et la
+réponse du hub s'affiche dans la console.
+
+Enfin, un repli : si le hub n'annonce pas un port — fiche mal enfoncée, appareil
+qu'il ne reconnaît pas — on peut **déclarer l'appareil à la main**.
+
+### Alimentation
+
+La tension et le courant mesurés à l'intérieur du hub. Le courant grimpe quand le
+moteur force ; une tension qui s'effondre sous charge annonce des piles en fin de
+vie bien avant que le pourcentage de batterie ne le dise.
+
+### Console LWP3
+
+Toutes les trames échangées avec le piano, en hexadécimal **et décodées en
+clair**. Une case masque le flux continu du moteur, qui sinon noie tout le reste
+à 25 trames par seconde.
+
+Trois raccourcis : *Interroger les ports* demande à chaque port ses capacités,
+*Explorer les modes* déroule le nom, l'unité et les bornes de chaque mode du
+capteur, et le champ de saisie envoie une trame brute — le premier octet est la
+longueur totale. Par exemple, `08 00 81 00 10 51 00 32` fait tourner le moteur du
+port A à 50 %.
+
+C'est l'équivalent, dans le navigateur, de ce que `pybricksdev` offre en ligne de
+commande : de quoi explorer le protocole sans rien installer.
 
 ---
 
@@ -309,6 +490,13 @@ Bluetooth encombrée peut demander 250 ms ou plus.
 **« GATT operation already in progress » dans la console**
 Sans effet : les écritures sont mises en file et rejouées. Si cela se répète en
 boucle, la liaison est probablement saturée — rapproche l'ordinateur du piano.
+
+**La liaison tombe toute seule, régulièrement**
+Le hub est sensible aux obstacles et à la distance. La reconnexion automatique
+reprend la main seule ; si elle échoue douze fois de suite, elle abandonne et le
+journal le dit. Rapproche l'ordinateur, ou change les piles : une tension basse
+fait décrocher la radio avant le moteur — la pastille *Tension basse* du panneau
+« Le hub » s'allume alors.
 
 **Le moteur tourne encore alors que j'ai fermé l'onglet**
 La page envoie une consigne d'arrêt en se fermant, mais si la fermeture est
@@ -352,6 +540,13 @@ d'origine n'est pas restauré. À lire avant de se lancer.
   d'Alexander Holm, licence Creative Commons BY 3.0, servi par le projet Tone.js.
 - **Morceaux de démonstration** — œuvres du domaine public (Bach, Beethoven), dont
   les données MIDI ont été saisies pour ce dépôt.
+- **Polices du thème Epitech** — [Anton](https://fonts.google.com/specimen/Anton)
+  et [IBM Plex Sans](https://github.com/IBM/plex), toutes deux sous SIL Open
+  Font License 1.1. La charte prévoit aussi Space Mono pour les éléments codés ;
+  faute de fichier fourni, la pile monospace du système prend le relais.
+- **Logo et charte Epitech** — propriété d'Epitech. Le thème reprend la charte
+  pour un usage interne ; le logo est utilisé tel quel, sans recoloration ni
+  déformation, comme la charte l'exige.
 - Ce projet n'est ni affilié ni approuvé par le groupe LEGO. LEGO® est une marque
   déposée du groupe LEGO.
 - Code sous licence MIT.

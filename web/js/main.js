@@ -13,6 +13,9 @@
 import { PianoHub } from './lego/hub.js';
 import { Player } from './music/player.js';
 import { MotionDriver, DEFAULT_SETTINGS } from './music/choreography.js';
+import { Warmup } from './music/warmup.js';
+import { GeekMode } from './geek.js';
+import { wireHubTools, HUB_TOOL_SETTINGS } from './hubtools.js';
 import {
   buildKeyboard,
   buildCamshaft,
@@ -28,7 +31,6 @@ const SETTINGS_KEY = 'lego-piano-jukebox/settings';
 const el = (id) => document.getElementById(id);
 const dom = {
   connect: el('btn-connect'),
-  disconnect: el('btn-disconnect'),
   hubPill: el('hub-pill'),
   hubLabel: el('hub-label'),
   hubBattery: el('hub-battery'),
@@ -62,11 +64,8 @@ const dom = {
   scrim: el('scrim'),
   openSettings: el('btn-settings'),
   closeSettings: el('btn-close-settings'),
-  testPower: el('test-power'),
-  testOut: el('out-test'),
-  testStop: el('btn-test-stop'),
-  sensorFill: el('sensor-fill'),
-  sensorValue: el('sensor-value'),
+  warmup: el('warmup'),
+  warmupLine: el('warmup-line'),
   log: el('log'),
 };
 
@@ -74,10 +73,22 @@ const dom = {
 /* État                                                                */
 /* ------------------------------------------------------------------ */
 
+/** Réglages d'interface, à côté de ceux de la chorégraphie. */
+const UI_DEFAULTS = { volume: 0.8, theme: 'piano', geek: false, warmup: false, ...HUB_TOOL_SETTINGS };
+
 const settings = loadSettings();
 const hub = new PianoHub();
+const warmup = new Warmup({ overlay: dom.warmup, line: dom.warmupLine }, hub, settings);
 let player = null;
 let driver = null;
+
+// Le panneau de télémétrie lit l'état des trois briques ; il ne les pilote pas.
+const geek = new GeekMode({
+  hub,
+  getPlayer: () => player,
+  getDriver: () => driver,
+  settings,
+});
 
 let library = [];
 let filtered = [];
@@ -99,9 +110,9 @@ const camshaft = buildCamshaft(dom.keyboardLego, 48, 25);
 function loadSettings() {
   try {
     const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
-    return { ...DEFAULT_SETTINGS, volume: 0.8, ...stored };
+    return { ...DEFAULT_SETTINGS, ...UI_DEFAULTS, ...stored };
   } catch {
-    return { ...DEFAULT_SETTINGS, volume: 0.8 };
+    return { ...DEFAULT_SETTINGS, ...UI_DEFAULTS };
   }
 }
 
@@ -110,6 +121,36 @@ function saveSettings() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch { /* mode navigation privée : tant pis */ }
 }
+
+/**
+ * Applique un thème. Le script du <head> a déjà posé l'attribut au
+ * chargement — cette fonction sert aux changements en cours de route.
+ */
+function applyTheme(theme) {
+  if (theme === 'piano') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+
+  // Les pochettes générées sont écrites en style inline : il faut les
+  // redessiner à la main dans la palette du nouveau thème.
+  const track = library[currentIndex];
+  if (track && !track.coverUrl) dom.cover.style.backgroundImage = coverStyle(track.id, theme);
+}
+
+function bindThemeControls() {
+  for (const input of document.querySelectorAll('input[name="theme"]')) {
+    input.checked = input.value === settings.theme;
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      settings.theme = input.value;
+      applyTheme(settings.theme);
+      saveSettings();
+    });
+  }
+  applyTheme(settings.theme);
+}
+
+/** Bascule du mode geek, installée par `bindSettingsControls`. */
+let toggleGeek = () => {};
 
 /** Champs numériques exposés en pourcentage dans l'interface. */
 const RATIO_FIELDS = new Set(['accent', 'sensitivity']);
@@ -130,7 +171,7 @@ function bindSettingsControls() {
     input.addEventListener('input', () => write(Number(input.value)));
   }
 
-  for (const key of ['enabled', 'idleStop', 'ledSync']) {
+  for (const key of ['enabled', 'idleStop', 'ledSync', 'warmup', 'brakeOnStop', 'rampStart']) {
     const input = el(`set-${key}`);
     input.checked = Boolean(settings[key]);
     input.addEventListener('change', () => {
@@ -140,6 +181,18 @@ function bindSettingsControls() {
       saveSettings();
     });
   }
+
+  const geekToggle = el('set-geek');
+  const setGeek = (on) => {
+    settings.geek = on;
+    geekToggle.checked = on;
+    geek.setEnabled(on);
+    saveSettings();
+  };
+  geekToggle.addEventListener('change', () => setGeek(geekToggle.checked));
+  geek.onClose = () => setGeek(false);
+  toggleGeek = () => setGeek(!settings.geek);
+  setGeek(Boolean(settings.geek));
 
   const direction = el('set-direction');
   direction.checked = settings.direction === -1;
@@ -266,7 +319,7 @@ async function ensureAudio() {
   dom.nowState.textContent = 'Prêt';
   // Accès depuis la console du navigateur, pratique pour mettre au point les
   // réglages moteur sans passer par l'interface.
-  window.jukebox = { player, driver, hub, settings };
+  Object.assign(window.jukebox, { player, driver });
   if (mode === 'synth') {
     toast('Échantillons de piano indisponibles : le synthétiseur de secours prend le relais.', 'info', 6000);
   }
@@ -274,6 +327,9 @@ async function ensureAudio() {
 
 async function selectTrack(index, autoplay = false) {
   if (index < 0 || index >= library.length) return;
+  // Changer de morceau interrompt la mise en route en cours : le chef
+  // recommencera sa scène pour celui qu'on vient de choisir.
+  warmup.cancel();
   await ensureAudio();
 
   currentIndex = index;
@@ -282,7 +338,7 @@ async function selectTrack(index, autoplay = false) {
 
   dom.nowTitle.textContent = track.title;
   dom.nowArtist.textContent = track.artist ?? 'Sans interprète';
-  dom.cover.style.backgroundImage = track.coverUrl ? `url("${track.coverUrl}")` : coverStyle(track.id);
+  dom.cover.style.backgroundImage = track.coverUrl ? `url("${track.coverUrl}")` : coverStyle(track.id, settings.theme);
   dom.cover.textContent = track.coverUrl ? '' : '♪';
 
   try {
@@ -297,7 +353,26 @@ async function selectTrack(index, autoplay = false) {
   renderBadges(track);
   paintNotes(scoreKeys, []);
 
-  if (autoplay) player.play();
+  if (autoplay) startPlayback();
+}
+
+/**
+ * Lance la lecture. Si la mise en route est active, le chef d'orchestre entre
+ * d'abord en scène : la musique attend qu'il ait donné le départ.
+ */
+async function startPlayback() {
+  if (!settings.warmup) {
+    player.play();
+    return;
+  }
+  dom.nowState.textContent = 'Mise en route…';
+  const go = await warmup.run(player);
+  // Scène annulée, ou morceau changé entre-temps : on ne lance rien.
+  if (!go || !player.track) {
+    if (!player.isPlaying) dom.nowState.textContent = 'Prêt';
+    return;
+  }
+  player.play();
 }
 
 function renderBadges(track) {
@@ -344,8 +419,13 @@ async function togglePlay() {
     await selectTrack(0, true);
     return;
   }
+  // Pendant la mise en route, le bouton abrège l'introduction.
+  if (warmup.active) {
+    warmup.skip();
+    return;
+  }
   if (player.isPlaying) player.pause();
-  else player.play();
+  else startPlayback();
 }
 
 function playNext(auto = false) {
@@ -376,7 +456,13 @@ function frame(now) {
   const dt = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
 
-  if (player?.track) {
+  warmup.tick(now);
+
+  if (warmup.active) {
+    // Pendant la mise en route, c'est la réponse du piano qui s'affiche.
+    paintNotes(scoreKeys, warmup.sounding);
+    dom.vizNotes.textContent = warmup.sounding.length ? 'le piano répond' : 'mise en route';
+  } else if (player?.track) {
     const time = player.currentTime;
     if (!seeking) {
       dom.seek.value = String(player.duration ? Math.round((time / player.duration) * 1000) : 0);
@@ -389,10 +475,12 @@ function frame(now) {
       : player.midi ? '—' : 'pas de partition';
   }
 
-  const power = driver?.running ? driver.power : 0;
+  const power = warmup.active ? warmup.power : driver?.running ? driver.power : 0;
   camshaft.update(power, dt);
   dom.powerFill.style.width = `${Math.abs(power)}%`;
   dom.vizPower.textContent = power ? `Moteur ${Math.abs(power)} %` : 'Moteur à l’arrêt';
+
+  geek.update(now);
 
   requestAnimationFrame(frame);
 }
@@ -403,15 +491,17 @@ function frame(now) {
 
 function wireHub() {
   hub.addEventListener('status', (event) => {
-    const { status, name, firmware } = event.detail;
+    const { status, name, attempt } = event.detail;
     dom.hubPill.dataset.state = status;
     if (status === 'connected') {
-      dom.hubLabel.textContent = hub.hubName ?? name ?? 'Piano connecté';
+      dom.hubLabel.textContent = hub.info.name ?? name ?? 'Piano connecté';
       dom.connect.textContent = 'Connecté';
       dom.connect.disabled = true;
-      if (firmware) logLine(dom.log, `Micrologiciel du hub : ${firmware}`);
     } else if (status === 'connecting') {
       dom.hubLabel.textContent = 'Connexion…';
+      dom.connect.disabled = true;
+    } else if (status === 'reconnecting') {
+      dom.hubLabel.textContent = `Reconnexion… (${attempt})`;
       dom.connect.disabled = true;
     } else {
       dom.hubLabel.textContent = 'Piano déconnecté';
@@ -421,17 +511,14 @@ function wireHub() {
     }
   });
 
+  hub.addEventListener('info', () => {
+    if (hub.connected && hub.info.name) dom.hubLabel.textContent = hub.info.name;
+  });
+
   hub.addEventListener('battery', (event) => {
     dom.hubBattery.hidden = false;
     dom.hubBattery.textContent = `${event.detail.level} %`;
     if (event.detail.level < 15) toast('Les piles du piano sont presque vides.', 'info', 6000);
-  });
-
-  hub.addEventListener('sensor', (event) => {
-    // Le capteur renvoie 0 (objet très près) à 10 (rien devant).
-    const value = event.detail.value;
-    dom.sensorValue.textContent = String(value);
-    dom.sensorFill.style.width = `${Math.max(0, 100 - value * 10)}%`;
   });
 
   hub.addEventListener('log', (event) => logLine(dom.log, event.detail.message, event.detail.level));
@@ -469,7 +556,6 @@ function openDrawer(open) {
 
 function wireUi() {
   dom.connect.addEventListener('click', connectHub);
-  dom.disconnect.addEventListener('click', () => hub.disconnect());
 
   dom.play.addEventListener('click', togglePlay);
   dom.next.addEventListener('click', () => playNext());
@@ -494,33 +580,29 @@ function wireUi() {
   dom.closeSettings.addEventListener('click', () => openDrawer(false));
   dom.scrim.addEventListener('click', () => openDrawer(false));
 
-  dom.testPower.addEventListener('input', () => {
-    const value = Number(dom.testPower.value);
-    dom.testOut.textContent = String(value);
-    hub.setMotorPower(value);
-  });
-  dom.testStop.addEventListener('click', () => {
-    dom.testPower.value = '0';
-    dom.testOut.textContent = '0';
-    hub.stopMotor();
-  });
-
   document.addEventListener('keydown', (event) => {
     if (event.target.matches('input, textarea')) return;
     if (event.code === 'Space') {
       event.preventDefault();
       togglePlay();
     } else if (event.code === 'Escape') {
+      if (warmup.active) {
+        warmup.cancel();
+        return;
+      }
       openDrawer(false);
     } else if (event.code === 'ArrowRight' && event.shiftKey) {
       playNext();
     } else if (event.code === 'ArrowLeft' && event.shiftKey) {
       playPrevious();
+    } else if (event.code === 'KeyG' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      toggleGeek();
     }
   });
 
   // Filet de sécurité : on ne laisse jamais le moteur tourner sans surveillance.
   const panic = () => {
+    warmup.cancel();
     driver?.stop();
     hub.stopMotor();
   };
@@ -540,11 +622,35 @@ function boot() {
       9000
     );
   }
+  // Accès depuis la console du navigateur dès le chargement : le lecteur s'y
+  // ajoute plus tard, quand le contexte audio est créé.
+  window.jukebox = { hub, settings, driver: null, player: null };
+
+  geek.mount();
+  bindThemeControls();
   bindSettingsControls();
   wireHub();
   wireUi();
+  wireHubTools({
+    hub,
+    toast,
+    settings,
+    saveSettings,
+    // Une commande manuelle du moteur doit arrêter la chorégraphie en cours,
+    // sinon les deux se disputent la consigne.
+    onManualControl: () => {
+      if (player?.isPlaying) player.pause();
+      driver?.stop();
+    },
+  });
   loadLibrary();
   requestAnimationFrame(frame);
+
+  // Si le navigateur garde l'autorisation d'un hub déjà utilisé, on retrouve la
+  // liaison sans repasser par le sélecteur.
+  if (PianoHub.isSupported() && settings.autoReconnect) {
+    hub.connectKnownDevice().catch(() => {});
+  }
 }
 
 boot();

@@ -48,6 +48,11 @@ export class PianoSampler {
     this.voices = new Map();
     /** Voix dont l'extinction est déjà programmée (lecture d'une partition). */
     this._pending = new Set();
+
+    /** Voix effectivement vivantes dans le graphe audio — la polyphonie réelle. */
+    this.activeVoices = 0;
+    /** Plus haute polyphonie atteinte depuis le chargement. */
+    this.peakVoices = 0;
   }
 
   connect(destination) {
@@ -131,6 +136,15 @@ export class PianoSampler {
     this._pending.clear();
   }
 
+  _voiceStarted() {
+    this.activeVoices += 1;
+    this.peakVoices = Math.max(this.peakVoices, this.activeVoices);
+  }
+
+  _voiceEnded() {
+    this.activeVoices = Math.max(0, this.activeVoices - 1);
+  }
+
   _nearestSample(midi) {
     let best = null;
     let bestDistance = Infinity;
@@ -163,6 +177,7 @@ export class PianoSampler {
     gain.connect(this.dry);
     gain.connect(this.wet);
     source.start(when);
+    this._voiceStarted();
 
     let stopped = false;
     const stop = (at, immediate = false) => {
@@ -177,6 +192,7 @@ export class PianoSampler {
       source.stop(time + release + 0.02);
     };
     source.onended = () => {
+      this._voiceEnded();
       gain.disconnect();
       source.disconnect();
     };
@@ -213,6 +229,7 @@ export class PianoSampler {
     gain.gain.exponentialRampToValueAtTime(level * 0.25, when + decay * 0.35);
     gain.connect(this.dry);
     gain.connect(this.wet);
+    this._voiceStarted();
 
     let stopped = false;
     const stop = (at, immediate = false) => {
@@ -225,7 +242,10 @@ export class PianoSampler {
       gain.gain.exponentialRampToValueAtTime(0.0001, time + release);
       for (const osc of oscillators) osc.stop(time + release + 0.02);
     };
-    oscillators[0].onended = () => gain.disconnect();
+    oscillators[0].onended = () => {
+      this._voiceEnded();
+      gain.disconnect();
+    };
     return { stop };
   }
 }

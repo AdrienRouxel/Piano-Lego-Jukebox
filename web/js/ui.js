@@ -3,6 +3,9 @@
  * pochettes générées, les notifications et le journal.
  */
 
+/** À pleine puissance, l'arbre à cames du modèle fait environ 2,2 tours/seconde. */
+export const CAMSHAFT_MAX_TURNS_PER_SECOND = 2.2;
+
 const WHITE_PITCH_CLASSES = new Set([0, 2, 4, 5, 7, 9, 11]);
 const NOTE_LABELS = ['do', 'do♯', 'ré', 'ré♯', 'mi', 'fa', 'fa♯', 'sol', 'sol♯', 'la', 'la♯', 'si'];
 
@@ -67,8 +70,7 @@ export function buildCamshaft(container, lowMidi = 48, count = 25) {
      * @param {number} dt secondes écoulées depuis la dernière image
      */
     update(power, dt) {
-      // À pleine puissance l'arbre fait environ 2,2 tours par seconde.
-      angle += (power / 100) * 2.2 * Math.PI * 2 * dt;
+      angle += (power / 100) * CAMSHAFT_MAX_TURNS_PER_SECOND * Math.PI * 2 * dt;
       const target = power === 0 ? 0 : 1;
       // Quand le moteur s'arrête, les touches retombent — sans à-coup.
       amplitude += (target - amplitude) * Math.min(1, dt * (target ? 14 : 5));
@@ -112,10 +114,25 @@ export function noteName(midi) {
   return `${NOTE_LABELS[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
 }
 
-/** Pochette déterministe : deux teintes tirées du nom du morceau. */
-export function coverStyle(id) {
+/** Couleurs de la charte Epitech utilisables en aplat de pochette. */
+const EPITECH_COVER_COLORS = ['#013afb', '#ff5f3a', '#00ff97', '#ff1ef7', '#7eb9a6'];
+
+/**
+ * Pochette déterministe, tirée du nom du morceau.
+ *
+ * Le thème par défaut mélange deux teintes voisines ; le thème Epitech
+ * découpe un aplat de la charte en diagonale, comme les surimpressions
+ * carrées de la charte.
+ */
+export function coverStyle(id, theme = 'piano') {
   let hash = 0;
   for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+
+  if (theme === 'epitech') {
+    const color = EPITECH_COVER_COLORS[hash % EPITECH_COVER_COLORS.length];
+    return `linear-gradient(135deg, ${color} 0 50%, #181818 50% 100%)`;
+  }
+
   const hue = hash % 360;
   const hue2 = (hue + 40 + (hash >> 8) % 60) % 360;
   return `linear-gradient(140deg, hsl(${hue} 34% 32%), hsl(${hue2} 30% 16%))`;

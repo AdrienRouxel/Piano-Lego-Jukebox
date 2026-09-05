@@ -17,6 +17,9 @@
 /** Pas d'échantillonnage de la courbe d'activité (secondes). */
 const STEP = 0.02;
 
+/** Période nominale du pilote moteur (ms) — 25 Hz, la cadence du lien BLE. */
+const TICK_INTERVAL = 40;
+
 export const DEFAULT_SETTINGS = {
   enabled: true,
   minPower: 40, // en dessous, le moteur cale sous la charge de l'arbre à cames
@@ -27,6 +30,8 @@ export const DEFAULT_SETTINGS = {
   direction: 1,
   idleStop: true,
   ledSync: true,
+  brakeOnStop: true, // freiner en fin de morceau plutôt que laisser tourner sur l'élan
+  rampStart: true, // et démarrer en douceur au lieu d'un à-coup
 };
 
 /* ------------------------------------------------------------------ */
@@ -162,6 +167,14 @@ export class MotionDriver extends EventTarget {
     this._quietSince = 0;
     this._beatIndex = 0;
     this._lastLed = 0;
+
+    /** Activité et accent du dernier cycle, plus la cadence réelle du minuteur. */
+    this.activity = 0;
+    this.accent = 0;
+    this.beatIndex = 0;
+    this.tickHz = 0;
+    this.tickJitterMs = 0;
+    this._lastTick = 0;
   }
 
   update(settings) {
@@ -179,23 +192,55 @@ export class MotionDriver extends EventTarget {
     this.running = true;
     this._beatIndex = 0;
     this._quietSince = performance.now();
-    this._timer = setInterval(() => this._tick(), 40);
+    this._lastTick = 0;
+
+    // Démarrage progressif : l'arbre à cames part sans à-coup, et les premières
+    // notes ne trouvent pas un moteur encore immobile. La rampe est lâchée dès
+    // que le premier tick calcule une consigne, elle ne fait que l'amorcer.
+    if (this.settings.rampStart && this.settings.enabled && this.hub.connected) {
+      this.hub.rampPower(0, this.settings.minPower * this.settings.direction, 400);
+    }
+
+    this._timer = setInterval(() => this._tick(), TICK_INTERVAL);
     this._tick();
   }
 
   stop() {
+    const wasRunning = this.running;
     this.running = false;
     if (this._timer) clearInterval(this._timer);
     this._timer = null;
     this.power = 0;
+    this.activity = 0;
+    this.accent = 0;
     this._moving = false;
-    this.hub.stopMotor();
+
+    // Freinage actif : l'arbre s'arrête net au lieu de finir sur son élan.
+    // On ne freine que si le moteur tournait, pour ne pas envoyer de commande
+    // inutile à chaque changement de morceau.
+    if (wasRunning && this.settings.brakeOnStop && this.hub.connected) {
+      this.hub.brake();
+    } else {
+      this.hub.stopMotor();
+    }
+
     if (this.settings.ledSync) this.hub.setLed(0, 40, 60);
     this.dispatchEvent(new CustomEvent('power', { detail: { power: 0, activity: 0 } }));
   }
 
   _tick() {
     if (!this.running || !this.curve) return;
+
+    // Cadence réellement obtenue : `setInterval` n'est pas un métronome, et
+    // l'écart au pas nominal se voit sur les passages chargés.
+    const wallClock = performance.now();
+    if (this._lastTick) {
+      const elapsed = wallClock - this._lastTick;
+      this.tickHz = this.tickHz ? this.tickHz * 0.85 + (1000 / elapsed) * 0.15 : 1000 / elapsed;
+      const drift = Math.abs(elapsed - TICK_INTERVAL);
+      this.tickJitterMs = this.tickJitterMs * 0.85 + drift * 0.15;
+    }
+    this._lastTick = wallClock;
 
     const now = this.getTime();
     const lookAhead = now + this.settings.leadMs / 1000;
@@ -207,6 +252,9 @@ export class MotionDriver extends EventTarget {
 
     const power = this._toPower(activity);
     this.power = power;
+    this.activity = activity;
+    this.accent = accent;
+    this.beatIndex = this._beatIndex;
 
     if (this.settings.enabled && this.hub.connected) {
       this.hub.setMotorPower(power * this.settings.direction);

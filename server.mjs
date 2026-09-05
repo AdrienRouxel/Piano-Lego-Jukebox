@@ -42,6 +42,7 @@ const MIME = {
   '.avif': 'image/avif',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
   '.mp3': 'audio/mpeg',
   '.m4a': 'audio/mp4',
   '.ogg': 'audio/ogg',

@@ -7,6 +7,14 @@
   <meta name="description" content="Jukebox web pour le LEGO Ideas Grand Piano 21323 : le son sort de l'ordinateur, les touches bougent en rythme." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎹</text></svg>" />
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Le thème est appliqué avant le premier rendu, sinon la page clignote
+    // en passant par le thème par défaut. Même clé que les réglages.
+    try {
+      const stored = JSON.parse(localStorage.getItem('lego-piano-jukebox/settings') ?? '{}');
+      if (stored.theme === 'epitech') document.documentElement.dataset.theme = 'epitech';
+    } catch { /* stockage indisponible : thème par défaut */ }
+  </script>
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -16,6 +24,7 @@
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 40 24" width="40" height="24"><rect x="0" y="0" width="40" height="24" rx="3" fill="currentColor" opacity=".12"/><g fill="currentColor"><rect x="3" y="3" width="4.4" height="18" rx="1"/><rect x="9" y="3" width="4.4" height="18" rx="1"/><rect x="15" y="3" width="4.4" height="18" rx="1"/><rect x="21" y="3" width="4.4" height="18" rx="1"/><rect x="27" y="3" width="4.4" height="18" rx="1"/><rect x="33" y="3" width="4.4" height="18" rx="1"/></g><g fill="#12100e"><rect x="6.2" y="3" width="3" height="11" rx="1"/><rect x="12.2" y="3" width="3" height="11" rx="1"/><rect x="24.2" y="3" width="3" height="11" rx="1"/><rect x="30.2" y="3" width="3" height="11" rx="1"/></g></svg>
       </span>
+      <img class="brand-logo" src="assets/brand/epitech-logo.png" alt="Epitech" width="113" height="28" />
       <span class="brand-text">
         <strong>Jukebox</strong>
         <small>LEGO&nbsp;Ideas Grand&nbsp;Piano 21323</small>
@@ -116,85 +125,313 @@
     </div>
 
     <div class="drawer-body">
-      <section class="settings-group">
-        <h3>Mouvement des touches</h3>
-        <label class="switch">
-          <input type="checkbox" id="set-enabled" checked />
-          <span>Piloter le moteur du piano</span>
-        </label>
-
-        <label class="slider">
-          <span class="slider-label">Puissance minimale <output id="out-minPower"></output></span>
-          <input type="range" id="set-minPower" min="0" max="100" step="1" />
-          <small>Le seuil auquel l’arbre à cames commence vraiment à tourner. Trop bas, le moteur cale et bourdonne.</small>
-        </label>
-
-        <label class="slider">
-          <span class="slider-label">Puissance maximale <output id="out-maxPower"></output></span>
-          <input type="range" id="set-maxPower" min="0" max="100" step="1" />
-          <small>Vitesse dans les passages les plus denses.</small>
-        </label>
-
-        <label class="slider">
-          <span class="slider-label">Avance <output id="out-leadMs"></output></span>
-          <input type="range" id="set-leadMs" min="0" max="500" step="10" />
-          <small>Le Bluetooth et l’inertie du moteur ajoutent du retard : on envoie la consigne un peu en avance.</small>
-        </label>
-
-        <label class="slider">
-          <span class="slider-label">Accent sur les temps <output id="out-accent"></output></span>
-          <input type="range" id="set-accent" min="0" max="100" step="1" />
-        </label>
-
-        <label class="slider">
-          <span class="slider-label">Sensibilité <output id="out-sensitivity"></output></span>
-          <input type="range" id="set-sensitivity" min="0" max="100" step="1" />
-          <small>Plus c’est haut, plus les nuances douces font déjà bouger les touches.</small>
-        </label>
-
-        <label class="switch">
-          <input type="checkbox" id="set-idleStop" />
-          <span>Arrêter le moteur pendant les silences</span>
-        </label>
-        <label class="switch">
-          <input type="checkbox" id="set-ledSync" />
-          <span>Faire pulser la LED du hub</span>
-        </label>
-        <label class="switch">
-          <input type="checkbox" id="set-direction" />
-          <span>Inverser le sens de rotation</span>
-        </label>
-      </section>
-
-      <section class="settings-group">
-        <h3>Essai du moteur</h3>
-        <p class="hint">Le piano doit être connecté. Sers-toi de ce curseur pour trouver la puissance minimale qui fait bouger les touches sans forcer.</p>
-        <label class="slider">
-          <span class="slider-label">Puissance d’essai <output id="out-test">0</output></span>
-          <input type="range" id="test-power" min="-100" max="100" step="1" value="0" />
-        </label>
-        <div class="row">
-          <button class="btn btn-ghost" id="btn-test-stop" type="button">Arrêter le moteur</button>
-          <button class="btn btn-ghost" id="btn-disconnect" type="button">Déconnecter</button>
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group" open>
+        <summary>Apparence</summary>
+        <div class="settings-content">
+          <div class="theme-choice" role="radiogroup" aria-label="Thème">
+            <label>
+              <input type="radio" name="theme" value="piano" checked />
+              <span>Piano</span>
+            </label>
+            <label>
+              <input type="radio" name="theme" value="epitech" />
+              <span>Epitech</span>
+            </label>
+          </div>
+          <p class="hint">Le thème « Epitech » applique la charte graphique de l’école : bleu <code>#013afb</code>, titres en Anton, texte en IBM Plex Sans.</p>
         </div>
-      </section>
+      </details>
 
-      <section class="settings-group">
-        <h3>Capteur de touche</h3>
-        <p class="hint">Le capteur de distance voit passer un drapeau à chaque enfoncement. Il réagit aussi quand c’est le moteur qui soulève les touches.</p>
-        <div class="sensor">
-          <div class="sensor-bar"><span id="sensor-fill"></span></div>
-          <span class="sensor-value" id="sensor-value">—</span>
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group" open>
+        <summary>Mouvement des touches</summary>
+        <div class="settings-content">
+          <label class="switch">
+            <input type="checkbox" id="set-enabled" checked />
+            <span>Piloter le moteur du piano</span>
+          </label>
+
+          <label class="slider">
+            <span class="slider-label">Puissance minimale <output id="out-minPower"></output></span>
+            <input type="range" id="set-minPower" min="0" max="100" step="1" />
+            <small>Le seuil auquel l’arbre à cames commence vraiment à tourner. Trop bas, le moteur cale et bourdonne.</small>
+          </label>
+
+          <label class="slider">
+            <span class="slider-label">Puissance maximale <output id="out-maxPower"></output></span>
+            <input type="range" id="set-maxPower" min="0" max="100" step="1" />
+            <small>Vitesse dans les passages les plus denses.</small>
+          </label>
+
+          <label class="slider">
+            <span class="slider-label">Avance <output id="out-leadMs"></output></span>
+            <input type="range" id="set-leadMs" min="0" max="500" step="10" />
+            <small>Le Bluetooth et l’inertie du moteur ajoutent du retard : on envoie la consigne un peu en avance.</small>
+          </label>
+
+          <label class="slider">
+            <span class="slider-label">Accent sur les temps <output id="out-accent"></output></span>
+            <input type="range" id="set-accent" min="0" max="100" step="1" />
+          </label>
+
+          <label class="slider">
+            <span class="slider-label">Sensibilité <output id="out-sensitivity"></output></span>
+            <input type="range" id="set-sensitivity" min="0" max="100" step="1" />
+            <small>Plus c’est haut, plus les nuances douces font déjà bouger les touches.</small>
+          </label>
+
+          <label class="switch">
+            <input type="checkbox" id="set-idleStop" />
+            <span>Arrêter le moteur pendant les silences</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-brakeOnStop" />
+            <span>Freiner en fin de morceau plutôt que laisser tourner</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-rampStart" />
+            <span>Démarrage progressif au lancement d’un morceau</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-ledSync" />
+            <span>Faire pulser la LED du hub</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-direction" />
+            <span>Inverser le sens de rotation</span>
+          </label>
         </div>
-      </section>
+      </details>
 
-      <section class="settings-group">
-        <h3>Journal</h3>
-        <div class="log" id="log" role="log" aria-live="polite"></div>
-      </section>
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group">
+        <summary>Mise en route</summary>
+        <div class="settings-content">
+          <label class="switch">
+            <input type="checkbox" id="set-warmup" />
+            <span>Faire venir le chef d’orchestre</span>
+          </label>
+          <p class="hint">Avant de lancer un morceau, le chef demande au piano s’il est prêt. Le piano répond en faisant sonner quelques touches — sur l’ordinateur, et sur le modèle s’il est connecté —, puis le chef donne le départ. Un clic passe l’introduction, <code>Échap</code> l’annule.</p>
+        </div>
+      </details>
+
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group">
+        <summary>Démonstration</summary>
+        <div class="settings-content">
+          <label class="switch">
+            <input type="checkbox" id="set-geek" />
+            <span>Geek mode</span>
+          </label>
+          <p class="hint">Ouvre un bandeau de télémétrie en bas de l’écran : traitement du signal, ordonnanceur de notes, trames Bluetooth, performances de la machine. Tout y est mesuré en direct, rien n’est simulé. Raccourci&nbsp;: touche <code>G</code>.</p>
+        </div>
+      </details>
+
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group">
+        <summary>Essai du moteur</summary>
+        <div class="settings-content">
+          <p class="hint">Le piano doit être connecté. Sers-toi de ce curseur pour trouver la puissance minimale qui fait bouger les touches sans forcer. Lancer un essai met la lecture en pause.</p>
+          <label class="slider">
+            <span class="slider-label">Puissance d’essai <output id="out-test">0</output></span>
+            <input type="range" id="test-power" min="-100" max="100" step="1" value="0" />
+          </label>
+          <div class="row">
+            <button class="btn btn-ghost" id="btn-test-stop" type="button">Roue libre</button>
+            <button class="btn btn-ghost" id="btn-test-brake" type="button">Freiner</button>
+          </div>
+          <div class="row">
+            <button class="btn btn-ghost" id="btn-test-ramp" type="button">Rampe 0 → max</button>
+            <button class="btn btn-ghost" id="btn-test-sequence" type="button">Séquence d’essai</button>
+          </div>
+          <p class="hint" id="test-feedback">—</p>
+        </div>
+      </details>
+
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group">
+        <summary>Le hub</summary>
+        <div class="settings-content">
+          <dl class="info-grid" id="hub-info"></dl>
+
+          <div class="alerts" id="hub-alerts"></div>
+
+          <label class="field">
+            <span class="field-label">Renommer le hub <small>14 caractères maximum</small></span>
+            <span class="field-row">
+              <input type="text" id="hub-name" maxlength="14" placeholder="Grand Piano" />
+              <button class="btn btn-ghost" id="btn-rename" type="button">Appliquer</button>
+            </span>
+          </label>
+
+          <label class="switch">
+            <input type="checkbox" id="set-autoReconnect" checked />
+            <span>Se reconnecter automatiquement après une coupure</span>
+          </label>
+
+          <div class="row">
+            <button class="btn btn-ghost" id="btn-refresh-info" type="button">Actualiser les infos</button>
+            <button class="btn btn-ghost" id="btn-disconnect" type="button">Déconnecter</button>
+            <button class="btn btn-ghost btn-danger" id="btn-shutdown" type="button">Éteindre le hub</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group">
+        <summary>Capteur de touche</summary>
+        <div class="settings-content">
+          <p class="hint">Le capteur de distance voit passer un drapeau à chaque enfoncement. Il réagit aussi quand c’est le moteur qui soulève les touches.</p>
+
+          <label class="field">
+            <span class="field-label">Mode de lecture</span>
+            <select id="sensor-mode">
+              <option value="0">Distance — 0 (touche enfoncée) à 10</option>
+              <option value="1">Comptage — nombre de passages depuis l’allumage</option>
+            </select>
+          </label>
+
+          <div class="sensor">
+            <div class="sensor-bar"><span id="sensor-fill"></span></div>
+            <span class="sensor-value" id="sensor-value">—</span>
+          </div>
+
+          <div class="row">
+            <button class="btn btn-ghost" id="btn-sensor-combined" type="button">Mode combiné (expérimental)</button>
+          </div>
+
+          <details class="nested">
+            <summary>Déclarer un appareil à la main</summary>
+            <div class="settings-content">
+              <p class="hint">À n’utiliser que si le hub n’annonce pas un port — fiche mal enfoncée, ou appareil qu’il ne reconnaît pas.</p>
+              <div class="field-row">
+                <select id="manual-port">
+                  <option value="0">Port A</option>
+                  <option value="1">Port B</option>
+                </select>
+                <select id="manual-type">
+                  <option value="1">Moteur simple</option>
+                  <option value="2">Moteur de train</option>
+                  <option value="35">Capteur de distance WeDo 2.0</option>
+                  <option value="37">Capteur couleur / distance</option>
+                </select>
+                <button class="btn btn-ghost" id="btn-manual-attach" type="button">Déclarer</button>
+              </div>
+            </div>
+          </details>
+        </div>
+      </details>
+
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group">
+        <summary>Alimentation</summary>
+        <div class="settings-content">
+          <p class="hint">Mesures internes du hub. Le courant grimpe quand le moteur force ; une tension qui s’effondre sous charge annonce des piles en fin de vie.</p>
+          <dl class="info-grid" id="power-info">
+            <dt>Tension</dt><dd id="power-voltage">—</dd>
+            <dt>Courant</dt><dd id="power-current">—</dd>
+          </dl>
+        </div>
+      </details>
+
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group" id="console-group">
+        <summary>Console LWP3</summary>
+        <div class="settings-content">
+          <p class="hint">Toutes les trames échangées avec le hub, décodées. Envoie une trame brute en hexadécimal pour explorer le protocole — le premier octet est la longueur totale.</p>
+
+          <label class="switch">
+            <input type="checkbox" id="console-hide-motor" checked />
+            <span>Masquer le flux continu du moteur</span>
+          </label>
+
+          <div class="console" id="console" role="log"></div>
+
+          <div class="field-row">
+            <input type="text" id="console-input" placeholder="08 00 81 00 10 51 00 32" spellcheck="false" />
+            <button class="btn btn-ghost" id="btn-console-send" type="button">Envoyer</button>
+          </div>
+
+          <div class="row">
+            <button class="btn btn-ghost" id="btn-probe-ports" type="button">Interroger les ports</button>
+            <button class="btn btn-ghost" id="btn-probe-modes" type="button">Explorer les modes</button>
+            <button class="btn btn-ghost" id="btn-console-clear" type="button">Vider</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ---------------------------------------------------------- -->
+      <details class="settings-group">
+        <summary>Journal</summary>
+        <div class="settings-content">
+          <div class="log" id="log" aria-live="polite"></div>
+        </div>
+      </details>
     </div>
   </aside>
   <div class="scrim" id="scrim" hidden></div>
+
+  <!-- ---------------------------------------------------------------- -->
+  <!-- Mise en route : le chef d’orchestre vient demander au piano s’il est prêt -->
+  <div class="warmup" id="warmup" hidden>
+    <div class="warmup-scene">
+      <div class="conductor">
+        <svg viewBox="0 0 130 152" width="126" height="147" aria-hidden="true">
+          <defs>
+            <linearGradient id="wu-coat" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#4a3d33" />
+              <stop offset="1" stop-color="#1a1613" />
+            </linearGradient>
+          </defs>
+
+          <ellipse class="wu-shadow" cx="64" cy="147" rx="38" ry="5" />
+
+          <g class="wu-body">
+            <path class="wu-leg" d="M52 100h10l-2 45h-9z" />
+            <path class="wu-leg" d="M68 100h10l1 45h-9z" />
+
+            <!-- queue-de-pie -->
+            <path class="wu-coat" d="M46 92 43 141 61 132 62 100Z" />
+            <path class="wu-coat" d="M82 92 85 141 67 132 66 100Z" />
+
+            <!-- torse -->
+            <path class="wu-coat" d="M64 44c-13 0-22 8-24 22l-2 30c0 6 11 10 26 10s26-4 26-10l-2-30c-2-14-11-22-24-22Z" />
+            <path class="wu-shirt" d="M57 45 64 59 71 45l3 2v45H54V47Z" />
+            <path class="wu-bow" d="M64 53 57 48v10l7-4 7 4V48Z" />
+
+            <!-- cou et tête -->
+            <path class="wu-coat" d="M58 34h12v12H58z" />
+            <g class="wu-head">
+              <circle class="wu-skin" cx="64" cy="27" r="13" />
+              <path class="wu-hair" d="M51 26a13 13 0 0 1 26 0c-2-5-7-8-13-8s-11 3-13 8Z" />
+            </g>
+
+            <!-- bras gauche, celui qui donne les nuances -->
+            <g class="wu-arm wu-arm-left">
+              <path d="M45 65C36 75 33 85 34 95" />
+              <circle class="wu-hand" cx="34" cy="97" r="5" />
+            </g>
+
+            <!-- bras droit, celui qui tient la baguette -->
+            <g class="wu-arm wu-arm-right">
+              <path d="M85 65c10-6 17-14 21-25" />
+              <circle class="wu-hand" cx="107" cy="37" r="5" />
+              <path class="wu-baton" d="M109 34 126 12" />
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <div class="warmup-bubble">
+        <p class="warmup-line" id="warmup-line" role="status" aria-live="polite"></p>
+        <span class="warmup-ear" aria-hidden="true"><i></i><i></i><i></i></span>
+      </div>
+
+      <span class="warmup-notes" aria-hidden="true"><i>♪</i><i>♫</i><i>♪</i></span>
+    </div>
+    <p class="warmup-skip">Clique pour passer l’introduction · Échap pour l’annuler</p>
+  </div>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 

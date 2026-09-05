@@ -47,6 +47,15 @@ export class Player extends EventTarget {
     this._vizIndex = 0;
     this._vizTime = 0;
 
+    /** Compteurs de l'ordonnanceur, lus par le mode geek. */
+    this.stats = {
+      schedulerTicks: 0,
+      notesScheduled: 0, // notes confiées au sampler depuis le chargement
+      notesDropped: 0, // notes arrivées trop tard pour être programmées
+      lastBatch: 0,
+      clockOrigin: null, // [contexte audio, performance.now()] au démarrage
+    };
+
     this.audio.addEventListener('ended', () => this._onEnded());
   }
 
@@ -164,6 +173,8 @@ export class Player extends EventTarget {
     if (this.isPlaying || !this.track) return;
     if (this.context?.state === 'suspended') await this.context.resume();
 
+    this.stats.clockOrigin = [this.context.currentTime, performance.now()];
+
     if (this.mode === 'midi') {
       this._startedAt = this.context.currentTime + 0.06; // petit coussin de démarrage
       this._resetSchedule(this._offset);
@@ -252,14 +263,38 @@ export class Player extends EventTarget {
     if (this.mode !== 'midi' || !this.midi) return;
     const notes = this.midi.notes;
     const horizon = this.currentTime + SCHEDULE_AHEAD;
+    this.stats.schedulerTicks += 1;
+    let batch = 0;
     while (this._scheduleIndex < notes.length && notes[this._scheduleIndex].time <= horizon) {
       const note = notes[this._scheduleIndex];
       this._scheduleIndex += 1;
       if (note.isDrum) continue; // un piano ne joue pas la batterie
       const when = this._startedAt + (note.time - this._offset);
-      if (when < this.context.currentTime - 0.05) continue; // trop tard, on saute
+      if (when < this.context.currentTime - 0.05) {
+        this.stats.notesDropped += 1;
+        continue; // trop tard, on saute
+      }
       this.sampler.noteOn(note.midi, note.velocity, Math.max(when, this.context.currentTime), note.duration);
+      batch += 1;
     }
+    this.stats.lastBatch = batch;
+    this.stats.notesScheduled += batch;
+  }
+
+  /**
+   * Écart entre l'horloge du matériel audio et celle du système, en
+   * millisecondes, depuis le début de la lecture. Les deux quartz ne battent
+   * jamais exactement au même rythme : c'est cette dérive qu'on mesure ici.
+   */
+  get clockDriftMs() {
+    if (!this.stats.clockOrigin || !this.context) return 0;
+    const [audio0, perf0] = this.stats.clockOrigin;
+    return (this.context.currentTime - audio0) * 1000 - (performance.now() - perf0);
+  }
+
+  /** Fenêtre d'anticipation de l'ordonnanceur, en secondes. */
+  get scheduleAhead() {
+    return SCHEDULE_AHEAD;
   }
 
   /**
