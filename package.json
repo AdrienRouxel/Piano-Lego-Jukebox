@@ -1,0 +1,16 @@
+{
+  "name": "lego-piano-jukebox",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jukebox web pour le LEGO Ideas Grand Piano 21323 : le son sort de l'ordinateur, le piano bouge ses touches en rythme via Bluetooth.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "fetch-samples": "node scripts/fetch-samples.mjs"
+  },
+  "license": "MIT"
+}

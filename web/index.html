@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jukebox — LEGO Grand Piano</title>
+  <meta name="description" content="Jukebox web pour le LEGO Ideas Grand Piano 21323 : le son sort de l'ordinateur, les touches bougent en rythme." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎹</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 40 24" width="40" height="24"><rect x="0" y="0" width="40" height="24" rx="3" fill="currentColor" opacity=".12"/><g fill="currentColor"><rect x="3" y="3" width="4.4" height="18" rx="1"/><rect x="9" y="3" width="4.4" height="18" rx="1"/><rect x="15" y="3" width="4.4" height="18" rx="1"/><rect x="21" y="3" width="4.4" height="18" rx="1"/><rect x="27" y="3" width="4.4" height="18" rx="1"/><rect x="33" y="3" width="4.4" height="18" rx="1"/></g><g fill="#12100e"><rect x="6.2" y="3" width="3" height="11" rx="1"/><rect x="12.2" y="3" width="3" height="11" rx="1"/><rect x="24.2" y="3" width="3" height="11" rx="1"/><rect x="30.2" y="3" width="3" height="11" rx="1"/></g></svg>
+      </span>
+      <span class="brand-text">
+        <strong>Jukebox</strong>
+        <small>LEGO&nbsp;Ideas Grand&nbsp;Piano 21323</small>
+      </span>
+    </div>
+
+    <div class="topbar-actions">
+      <div class="hub-pill" id="hub-pill" data-state="disconnected">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="hub-label" id="hub-label">Piano déconnecté</span>
+        <span class="hub-battery" id="hub-battery" hidden></span>
+      </div>
+      <button class="btn btn-primary" id="btn-connect" type="button">Connecter le piano</button>
+      <button class="btn btn-icon" id="btn-settings" type="button" aria-label="Réglages" title="Réglages">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.2 12H2M22 12h-2.2M6.1 6.1 4.5 4.5M19.5 19.5l-1.6-1.6M17.9 6.1l1.6-1.6M4.5 19.5l1.6-1.6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ------------------------------------------------------------ -->
+    <section class="stage" aria-label="Lecture en cours">
+      <div class="stage-head">
+        <div class="cover" id="cover" aria-hidden="true"></div>
+        <div class="stage-meta">
+          <p class="eyebrow" id="now-state">Prêt</p>
+          <h1 class="now-title" id="now-title">Choisis un morceau</h1>
+          <p class="now-artist" id="now-artist">La bibliothèque se trouve dans le dossier <code>tracks/</code></p>
+          <p class="badges" id="now-badges"></p>
+        </div>
+      </div>
+
+      <!-- Ce que joue la musique -->
+      <div class="viz-block">
+        <div class="viz-head">
+          <span class="viz-title">Partition</span>
+          <span class="viz-sub" id="viz-notes">—</span>
+        </div>
+        <div class="keyboard keyboard-score" id="keyboard-score" aria-hidden="true"></div>
+      </div>
+
+      <!-- Ce que fait le modèle LEGO -->
+      <div class="viz-block">
+        <div class="viz-head">
+          <span class="viz-title">Modèle LEGO — arbre à cames</span>
+          <span class="viz-sub" id="viz-power">Moteur à l’arrêt</span>
+        </div>
+        <div class="keyboard keyboard-lego" id="keyboard-lego" aria-hidden="true"></div>
+        <div class="power-bar" aria-hidden="true"><span id="power-fill"></span></div>
+      </div>
+
+      <div class="transport">
+        <button class="btn btn-round" id="btn-prev" type="button" aria-label="Morceau précédent">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 5h2.4v14H7zM19 5v14l-9-7z"/></svg>
+        </button>
+        <button class="btn btn-round btn-play" id="btn-play" type="button" aria-label="Lecture" data-playing="0">
+          <svg class="icon-play" viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5.2 19.5 12 8 18.8z"/></svg>
+          <svg class="icon-pause" viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z"/></svg>
+        </button>
+        <button class="btn btn-round" id="btn-next" type="button" aria-label="Morceau suivant">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M14.6 5H17v14h-2.4zM5 5l9 7-9 7z"/></svg>
+        </button>
+
+        <div class="seek">
+          <span class="time" id="time-current">0:00</span>
+          <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Position dans le morceau" />
+          <span class="time" id="time-total">0:00</span>
+        </div>
+
+        <label class="volume" title="Volume">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M4 9.5h3.2L12 5.4v13.2L7.2 14.5H4zM15.4 8.6a5 5 0 0 1 0 6.8l1.5 1.4a7 7 0 0 0 0-9.6z"/></svg>
+          <input type="range" id="volume" min="0" max="100" value="80" aria-label="Volume" />
+        </label>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------ -->
+    <section class="library" aria-label="Bibliothèque">
+      <div class="library-head">
+        <h2>Bibliothèque</h2>
+        <div class="library-tools">
+          <input type="search" id="search" placeholder="Filtrer…" aria-label="Filtrer les morceaux" />
+          <button class="btn btn-ghost" id="btn-refresh" type="button" title="Relire le dossier tracks/">Actualiser</button>
+        </div>
+      </div>
+      <ol class="track-list" id="track-list"></ol>
+      <p class="library-empty" id="library-empty" hidden></p>
+    </section>
+  </main>
+
+  <!-- ---------------------------------------------------------------- -->
+  <aside class="drawer" id="drawer" hidden aria-label="Réglages">
+    <div class="drawer-head">
+      <h2>Réglages</h2>
+      <button class="btn btn-icon" id="btn-close-settings" type="button" aria-label="Fermer">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="drawer-body">
+      <section class="settings-group">
+        <h3>Mouvement des touches</h3>
+        <label class="switch">
+          <input type="checkbox" id="set-enabled" checked />
+          <span>Piloter le moteur du piano</span>
+        </label>
+
+        <label class="slider">
+          <span class="slider-label">Puissance minimale <output id="out-minPower"></output></span>
+          <input type="range" id="set-minPower" min="0" max="100" step="1" />
+          <small>Le seuil auquel l’arbre à cames commence vraiment à tourner. Trop bas, le moteur cale et bourdonne.</small>
+        </label>
+
+        <label class="slider">
+          <span class="slider-label">Puissance maximale <output id="out-maxPower"></output></span>
+          <input type="range" id="set-maxPower" min="0" max="100" step="1" />
+          <small>Vitesse dans les passages les plus denses.</small>
+        </label>
+
+        <label class="slider">
+          <span class="slider-label">Avance <output id="out-leadMs"></output></span>
+          <input type="range" id="set-leadMs" min="0" max="500" step="10" />
+          <small>Le Bluetooth et l’inertie du moteur ajoutent du retard : on envoie la consigne un peu en avance.</small>
+        </label>
+
+        <label class="slider">
+          <span class="slider-label">Accent sur les temps <output id="out-accent"></output></span>
+          <input type="range" id="set-accent" min="0" max="100" step="1" />
+        </label>
+
+        <label class="slider">
+          <span class="slider-label">Sensibilité <output id="out-sensitivity"></output></span>
+          <input type="range" id="set-sensitivity" min="0" max="100" step="1" />
+          <small>Plus c’est haut, plus les nuances douces font déjà bouger les touches.</small>
+        </label>
+
+        <label class="switch">
+          <input type="checkbox" id="set-idleStop" />
+          <span>Arrêter le moteur pendant les silences</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" id="set-ledSync" />
+          <span>Faire pulser la LED du hub</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" id="set-direction" />
+          <span>Inverser le sens de rotation</span>
+        </label>
+      </section>
+
+      <section class="settings-group">
+        <h3>Essai du moteur</h3>
+        <p class="hint">Le piano doit être connecté. Sers-toi de ce curseur pour trouver la puissance minimale qui fait bouger les touches sans forcer.</p>
+        <label class="slider">
+          <span class="slider-label">Puissance d’essai <output id="out-test">0</output></span>
+          <input type="range" id="test-power" min="-100" max="100" step="1" value="0" />
+        </label>
+        <div class="row">
+          <button class="btn btn-ghost" id="btn-test-stop" type="button">Arrêter le moteur</button>
+          <button class="btn btn-ghost" id="btn-disconnect" type="button">Déconnecter</button>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h3>Capteur de touche</h3>
+        <p class="hint">Le capteur de distance voit passer un drapeau à chaque enfoncement. Il réagit aussi quand c’est le moteur qui soulève les touches.</p>
+        <div class="sensor">
+          <div class="sensor-bar"><span id="sensor-fill"></span></div>
+          <span class="sensor-value" id="sensor-value">—</span>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h3>Journal</h3>
+        <div class="log" id="log" role="log" aria-live="polite"></div>
+      </section>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim" hidden></div>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
