@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeDemoTracks } from './scripts/make-demo-tracks.mjs';
+import { writeStarterLibrary } from './scripts/make-library.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(ROOT, 'web');
@@ -71,17 +71,38 @@ const MIME = {
 /**
  * Un « morceau » est un groupe de fichiers partageant le même nom de base :
  *
- *   tracks/Chopin - Nocturne op.9 no.2.mid   ← la partition (pilote les touches)
- *   tracks/Chopin - Nocturne op.9 no.2.mp3   ← l'audio (optionnel, remplace le synthé)
- *   tracks/Chopin - Nocturne op.9 no.2.jpg   ← la pochette (optionnelle)
+ *   tracks/Classique/Chopin - Nocturne.mid   ← la partition (pilote les touches)
+ *   tracks/Classique/Chopin - Nocturne.mp3   ← l'audio (optionnel, remplace le synthé)
+ *   tracks/Classique/Chopin - Nocturne.jpg   ← la pochette (optionnelle)
  *
  * Un MP3 seul fonctionne aussi : la chorégraphie est alors déduite en direct
  * du niveau sonore. Un MIDI seul fonctionne aussi : le son est synthétisé.
+ *
+ * Chaque sous-dossier de `tracks/` est une **catégorie**, repliable dans la
+ * page. Les fichiers posés à la racine forment la catégorie « Mes morceaux ».
+ * Un seul niveau est exploré : un dossier dans un dossier est ignoré.
  */
-async function scanLibrary() {
+
+/** Catégorie des fichiers laissés à la racine de `tracks/`. */
+const ROOT_CATEGORY = 'Mes morceaux';
+
+/**
+ * Ordre d'affichage des catégories connues. Toute autre catégorie vient
+ * ensuite, par ordre alphabétique, et « Mes morceaux » ferme la marche.
+ */
+const CATEGORY_ORDER = ['Classique', 'Moderne', 'Gaming', 'Réglage'];
+
+function categoryRank(name) {
+  if (name === ROOT_CATEGORY) return CATEGORY_ORDER.length + 1;
+  const known = CATEGORY_ORDER.indexOf(name);
+  return known === -1 ? CATEGORY_ORDER.length : known;
+}
+
+/** Inventorie un dossier et renvoie ses morceaux, triés par nom. */
+async function scanFolder(dir, category, urlPrefix) {
   let entries = [];
   try {
-    entries = await fsp.readdir(TRACKS_DIR, { withFileTypes: true });
+    entries = await fsp.readdir(dir, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -100,23 +121,68 @@ async function scanLibrary() {
     groups.set(base, group);
   }
 
+  const url = (name) => (name ? urlPrefix + encodeURIComponent(name) : null);
   const tracks = [];
   for (const group of groups.values()) {
     if (!group.midi && !group.audio) continue; // une pochette orpheline n'est pas un morceau
 
     const { artist, title } = splitName(group.base);
     tracks.push({
-      id: group.base,
+      // L'identifiant porte la catégorie : deux morceaux homonymes dans deux
+      // dossiers différents restent distincts (et gardent deux pochettes).
+      id: `${category}/${group.base}`,
+      category,
       title,
       artist,
-      midiUrl: group.midi ? '/tracks/' + encodeURIComponent(group.midi) : null,
-      audioUrl: group.audio ? '/tracks/' + encodeURIComponent(group.audio) : null,
-      coverUrl: group.cover ? '/tracks/' + encodeURIComponent(group.cover) : null,
+      midiUrl: url(group.midi),
+      audioUrl: url(group.audio),
+      coverUrl: url(group.cover),
     });
   }
 
   tracks.sort((a, b) => a.id.localeCompare(b.id, 'fr', { numeric: true, sensitivity: 'base' }));
   return tracks;
+}
+
+/**
+ * Parcourt `tracks/` et sa première rangée de sous-dossiers.
+ * @returns {Promise<{tracks: object[], categories: {name: string, count: number}[]}>}
+ */
+async function scanLibrary() {
+  let entries = [];
+  try {
+    entries = await fsp.readdir(TRACKS_DIR, { withFileTypes: true });
+  } catch {
+    return { tracks: [], categories: [] };
+  }
+
+  const folders = entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name);
+
+  const scanned = await Promise.all([
+    scanFolder(TRACKS_DIR, ROOT_CATEGORY, '/tracks/'),
+    ...folders.map((name) => scanFolder(path.join(TRACKS_DIR, name), name, `/tracks/${encodeURIComponent(name)}/`)),
+  ]);
+
+  // Un dossier vide reste une catégorie : elle s'affiche, prête à être remplie.
+  const counts = new Map(folders.map((name) => [name, 0]));
+  for (const list of scanned) {
+    if (list.length) counts.set(list[0].category, list.length);
+  }
+  counts.delete(ROOT_CATEGORY);
+  if (scanned[0].length) counts.set(ROOT_CATEGORY, scanned[0].length);
+
+  const categories = [...counts]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => categoryRank(a.name) - categoryRank(b.name) || a.name.localeCompare(b.name, 'fr'));
+
+  const order = new Map(categories.map((entry, index) => [entry.name, index]));
+  const tracks = scanned
+    .flat()
+    .sort((a, b) => order.get(a.category) - order.get(b.category) || a.id.localeCompare(b.id, 'fr', { numeric: true, sensitivity: 'base' }));
+
+  return { tracks, categories };
 }
 
 /** « Chopin - Nocturne op.9 no.2 » → { artist: 'Chopin', title: 'Nocturne op.9 no.2' } */
@@ -246,9 +312,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/library') {
-      const [tracks, localSamples] = await Promise.all([scanLibrary(), hasLocalSamples()]);
+      const [library, localSamples] = await Promise.all([scanLibrary(), hasLocalSamples()]);
       sendJson(res, 200, {
-        tracks,
+        tracks: library.tracks,
+        categories: library.categories,
         localSamples,
         tracksDir: TRACKS_DIR,
       });
@@ -280,14 +347,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// Premier lancement : plutôt qu'un jukebox vide, on écrit quelques morceaux
-// de démonstration (générés localement, œuvres du domaine public).
+// Premier lancement : plutôt qu'un jukebox vide, on écrit la bibliothèque
+// de départ (générée localement, à partir des partitions de `scripts/scores/`).
 async function seedIfEmpty() {
-  const tracks = await scanLibrary();
+  const { tracks } = await scanLibrary();
   if (tracks.length) return null;
   try {
-    const written = await writeDemoTracks(TRACKS_DIR);
-    return written;
+    return await writeStarterLibrary(TRACKS_DIR);
   } catch {
     return null;
   }
@@ -302,7 +368,7 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log('  ────────────────────────────────────────────');
   console.log(`  Ouvre  ${url}  dans Chrome ou Edge.`);
   console.log(`  Morceaux : ${TRACKS_DIR}`);
-  if (seeded) console.log(`  (bibliothèque vide : ${seeded.length} morceaux de démonstration y ont été créés)`);
+  if (seeded) console.log(`  (bibliothèque vide : ${seeded.length} morceaux y ont été écrits)`);
   console.log('');
   console.log('  Le Web Bluetooth exige localhost ou HTTPS — utilise bien');
   console.log('  cette adresse, pas file:// ni l\'IP de la machine.');

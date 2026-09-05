@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Geek mode — télémétrie</title>
+  <meta name="description" content="Télémétrie temps réel du jukebox LEGO Grand Piano, mise en page pour un second écran." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Même thème que la fenêtre du jukebox, appliqué avant le premier rendu.
+    try {
+      const stored = JSON.parse(localStorage.getItem('lego-piano-jukebox/settings') ?? '{}');
+      if (stored.theme === 'epitech') document.documentElement.dataset.theme = 'epitech';
+    } catch { /* stockage indisponible : thème par défaut */ }
+  </script>
+</head>
+<body class="geek-screen">
+  <!-- Le panneau est construit par la fenêtre du jukebox : c'est elle qui tient
+       le contexte audio et la connexion Bluetooth. Cette page ne fait que
+       l'accueillir et lui donner un rythme d'affichage. -->
+  <p class="geek-orphan" id="orphan" hidden></p>
+  <script type="module" src="js/geek-screen.js"></script>
+</body>
+</html>

@@ -107,11 +107,10 @@ export class PianoSampler {
    */
   noteOn(midi, velocity = 0.7, when = this.context.currentTime, duration = null) {
     const voice = this.mode === 'sampler' && this.buffers.size
-      ? this._playSample(midi, velocity, when)
-      : this._playSynth(midi, velocity, when);
+      ? this._playSample(midi, velocity, when, duration)
+      : this._playSynth(midi, velocity, when, duration);
     if (!voice) return null;
     if (duration !== null) {
-      voice.stop(when + duration);
       this._pending.add(voice);
       return voice;
     }
@@ -158,9 +157,9 @@ export class PianoSampler {
     return best;
   }
 
-  _playSample(midi, velocity, when) {
+  _playSample(midi, velocity, when, duration = null) {
     const sampleMidi = this._nearestSample(midi);
-    if (sampleMidi === null) return this._playSynth(midi, velocity, when);
+    if (sampleMidi === null) return this._playSynth(midi, velocity, when, duration);
 
     const source = this.context.createBufferSource();
     source.buffer = this.buffers.get(sampleMidi);
@@ -171,7 +170,14 @@ export class PianoSampler {
     // proche de la réponse d'un vrai piano plutôt qu'une simple proportion.
     const level = 0.95 * velocity ** 1.6 + 0.05;
     gain.gain.setValueAtTime(0, when);
-    gain.gain.linearRampToValueAtTime(level, when + 0.004);
+    gain.gain.linearRampToValueAtTime(level, when + ATTACK);
+
+    // Enveloppe après l'attaque : l'échantillon décroît tout seul, le gain reste plat.
+    const levelAt = (time) => {
+      if (time <= when) return FLOOR;
+      if (time >= when + ATTACK) return level;
+      return Math.max(FLOOR, (level * (time - when)) / ATTACK);
+    };
 
     source.connect(gain);
     gain.connect(this.dry);
@@ -179,27 +185,17 @@ export class PianoSampler {
     source.start(when);
     this._voiceStarted();
 
-    let stopped = false;
-    const stop = (at, immediate = false) => {
-      if (stopped) return;
-      stopped = true;
-      const time = Math.max(at, this.context.currentTime);
-      // Les étouffoirs d'un piano ne coupent pas net : on laisse une décroissance.
-      const release = immediate ? 0.08 : 0.4;
-      gain.gain.cancelScheduledValues(time);
-      gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), time);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + release);
-      source.stop(time + release + 0.02);
-    };
+    const voice = makeVoice(this.context, gain, levelAt, when, duration, (at) => source.stop(at));
     source.onended = () => {
       this._voiceEnded();
+      this._pending.delete(voice);
       gain.disconnect();
       source.disconnect();
     };
-    return { stop };
+    return voice;
   }
 
-  _playSynth(midi, velocity, when) {
+  _playSynth(midi, velocity, when, duration = null) {
     const frequency = 440 * 2 ** ((midi - 69) / 12);
     const gain = this.context.createGain();
     const level = 0.42 * velocity ** 1.5 + 0.02;
@@ -223,31 +219,92 @@ export class PianoSampler {
     });
 
     gain.gain.setValueAtTime(0, when);
-    gain.gain.linearRampToValueAtTime(level, when + 0.006);
+    gain.gain.linearRampToValueAtTime(level, when + ATTACK);
+
     // Décroissance naturelle : les aigus s'éteignent plus vite que les graves.
     const decay = 1.6 + Math.max(0, (60 - midi) / 24);
-    gain.gain.exponentialRampToValueAtTime(level * 0.25, when + decay * 0.35);
+    const decayFrom = when + ATTACK;
+    const decayTo = when + decay * 0.35;
+    const sustain = level * 0.25;
+    const levelAt = (time) => {
+      if (time <= when) return FLOOR;
+      if (time < decayFrom) return Math.max(FLOOR, (level * (time - when)) / ATTACK);
+      if (time >= decayTo) return sustain;
+      return level * 0.25 ** ((time - decayFrom) / (decayTo - decayFrom));
+    };
+    // La décroissance n'est programmée que jusqu'à l'extinction : au-delà, c'est
+    // le relâché qui prend la main, sans rupture de niveau.
+    const decayUntil = duration === null ? decayTo : Math.min(decayTo, Math.max(decayFrom, when + duration));
+    if (decayUntil > decayFrom) gain.gain.exponentialRampToValueAtTime(levelAt(decayUntil), decayUntil);
+
     gain.connect(this.dry);
     gain.connect(this.wet);
     this._voiceStarted();
 
-    let stopped = false;
-    const stop = (at, immediate = false) => {
-      if (stopped) return;
-      stopped = true;
-      const time = Math.max(at, this.context.currentTime);
-      const release = immediate ? 0.05 : 0.35;
-      gain.gain.cancelScheduledValues(time);
-      gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), time);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + release);
-      for (const osc of oscillators) osc.stop(time + release + 0.02);
-    };
+    const voice = makeVoice(this.context, gain, levelAt, when, duration, (at) => {
+      for (const osc of oscillators) osc.stop(at);
+    });
     oscillators[0].onended = () => {
       this._voiceEnded();
+      this._pending.delete(voice);
       gain.disconnect();
     };
-    return { stop };
+    return voice;
   }
+}
+
+/** Attaque, en secondes : assez courte pour percuter, assez longue pour ne pas claquer. */
+const ATTACK = 0.005;
+/** Les étouffoirs d'un piano ne coupent pas net : on laisse une décroissance. */
+const RELEASE = 0.4;
+/** Extinction d'urgence (arrêt de la lecture, changement de morceau). */
+const CUT = 0.08;
+/** Un gain nul est interdit par les rampes exponentielles : on s'arrête juste au-dessus. */
+const FLOOR = 0.0001;
+
+/**
+ * Programme le relâché d'une voix et renvoie sa poignée d'arrêt.
+ *
+ * Le point délicat : quand la durée est connue d'avance, l'extinction est
+ * programmée avant même que la note ait commencé. Il ne faut donc jamais lire
+ * `gain.gain.value` — qui vaut le niveau d'*aujourd'hui*, pas celui qu'aura la
+ * voix à l'instant du relâché. On repart de l'enveloppe calculée (`levelAt`),
+ * seule façon d'enchaîner sans marche d'escalier : c'est cette discontinuité qui
+ * s'entendait comme un craquement à la fin de chaque note.
+ *
+ * @param {(at:number)=>void} halt arrête les sources sonores de la voix
+ */
+function makeVoice(context, gain, levelAt, when, duration, halt) {
+  const fade = (from, at, seconds) => {
+    gain.gain.setValueAtTime(Math.max(FLOOR, from), at);
+    gain.gain.exponentialRampToValueAtTime(FLOOR, at + seconds);
+    return at + seconds + 0.02;
+  };
+
+  let stopped = false;
+  let silentAt = Infinity;
+  if (duration !== null) {
+    const off = Math.max(when + ATTACK, when + duration);
+    silentAt = fade(levelAt(off), off, RELEASE);
+    halt(silentAt);
+    stopped = true; // l'enveloppe est complète ; seule une coupure d'urgence la reprend
+  }
+
+  return {
+    stop(at, immediate = false) {
+      if (stopped && !immediate) return;
+      const time = Math.max(at, context.currentTime);
+      if (time >= silentAt) return; // déjà éteinte
+      // Une coupure d'urgence peut tomber au milieu d'un relâché déjà programmé :
+      // le niveau réel est alors plus bas que l'enveloppe théorique, et c'est lui
+      // qui fait foi — repartir plus haut s'entendrait comme un sursaut.
+      const from = immediate ? Math.min(levelAt(time), Math.max(gain.gain.value, FLOOR)) : levelAt(time);
+      stopped = true;
+      gain.gain.cancelScheduledValues(time);
+      silentAt = fade(from, time, immediate ? CUT : RELEASE);
+      halt(silentAt);
+    },
+  };
 }
 
 /** Réverbération générée : bruit blanc décroissant, stéréo, sans fichier externe. */

@@ -799,6 +799,13 @@ export class PianoHub extends EventTarget {
     return this._cmdQueue.length + (this._motorPending === null ? 0 : 1);
   }
 
+  /** Commandes envoyées dont le hub n'a pas encore accusé réception (mode geek). */
+  get pendingFeedback() {
+    let total = 0;
+    for (const waiters of this._feedbackWaiters.values()) total += waiters.length;
+    return total;
+  }
+
   async _pump() {
     if (this._pumping || !this.characteristic) return;
     this._pumping = true;

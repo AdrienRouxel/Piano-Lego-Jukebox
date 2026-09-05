@@ -93,9 +93,9 @@ Puis ouvre **http://localhost:4173**.
 > « contexte sécurisé » : `https://` ou `localhost`. Un fichier ouvert en
 > `file://`, ou l'adresse IP de la machine, ne fonctionnera pas.
 
-Au tout premier lancement, si le dossier `tracks/` est vide, quatre morceaux de
-démonstration y sont écrits (des œuvres du domaine public, générées localement,
-rien n'est téléchargé).
+Au tout premier lancement, si le dossier `tracks/` est vide, une bibliothèque de
+départ y est écrite : 31 morceaux répartis en quatre catégories, générés
+localement note à note — rien n'est téléchargé.
 
 ### Connecter le piano
 
@@ -118,6 +118,35 @@ directement. S'il est déjà pris par l'application LEGO Powered Up, ferme-la.
 
 Dépose tes fichiers dans le dossier **`tracks/`**, puis clique sur *Actualiser*.
 
+### Les catégories
+
+Chaque **sous-dossier de `tracks/` est une catégorie**, qui s'affiche dans la
+page sous la forme d'une section qu'on ouvre et qu'on ferme d'un clic. Un
+sous-dossier vide reste visible : c'est ainsi qu'on sait où déposer ses
+fichiers. Les fichiers laissés à la racine forment la catégorie
+*Mes morceaux*. Un seul niveau est exploré — un dossier dans un dossier est
+ignoré.
+
+| Catégorie | Contenu |
+|---|---|
+| `Classique/` | 20 pièces du domaine public, en arrangement simplifié |
+| `Moderne/` | 10 pièces originales, dans les esthétiques actuelles |
+| `Gaming/` | vide — à remplir |
+| `Réglage/` | la piste de calibration du moteur |
+
+L'ordre d'affichage de ces quatre catégories est fixé dans `server.mjs`
+(`CATEGORY_ORDER`) ; toute autre catégorie vient ensuite, par ordre
+alphabétique. L'état ouvert/fermé de chacune est retenu d'une visite à l'autre.
+
+Pour régénérer la bibliothèque de départ sans repartir d'un dossier vide :
+
+```bash
+npm run make-library
+```
+
+Un fichier déjà présent n'est jamais écrasé ; ajoute `-- --force` pour le
+réécrire quand même.
+
 **Le MIDI est le format à privilégier**, et voici pourquoi : un fichier MIDI n'est
 pas de l'audio, c'est une partition — chaque note, son instant, sa durée, sa
 nuance. Le jukebox sait donc exactement ce qui se passe à chaque milliseconde et
@@ -137,11 +166,13 @@ Le nom du fichier fait office de fiche :
 
 ```
 tracks/
-├── Frédéric Chopin - Nocturne op.9 no.2.mid     → interprète + titre
-├── Frédéric Chopin - Nocturne op.9 no.2.jpg     → pochette (facultative)
-├── Scott Joplin - The Entertainer.mid
-├── Scott Joplin - The Entertainer.mp3           → un vrai enregistrement
-└── Une improvisation.mid                        → sans interprète, ça marche aussi
+├── Classique/
+│   ├── Frédéric Chopin - Nocturne op.9 no.2.mid → interprète + titre
+│   ├── Frédéric Chopin - Nocturne op.9 no.2.jpg → pochette (facultative)
+│   ├── Scott Joplin - The Entertainer.mid
+│   └── Scott Joplin - The Entertainer.mp3       → un vrai enregistrement
+├── Gaming/                                      → catégorie vide, mais visible
+└── Une improvisation.mid                        → à la racine, sans interprète
 ```
 
 Les fichiers qui partagent le même nom de base forment **un seul morceau**.
@@ -177,7 +208,7 @@ synthétiseur de secours intégré prend le relais : moins beau, mais toujours l
 
 ```mermaid
 flowchart LR
-    A["tracks/*.mid<br/>tracks/*.mp3"] --> B["server.mjs<br/>/api/library"]
+    A["tracks/&lt;catégorie&gt;/*.mid<br/>tracks/&lt;catégorie&gt;/*.mp3"] --> B["server.mjs<br/>/api/library"]
     B --> C["Player<br/>transport + horloge"]
     C --> D["PianoSampler<br/>échantillons de piano"]
     D --> E(("🔊 Haut-parleurs"))
@@ -194,12 +225,16 @@ flowchart LR
 ```
 server.mjs                      Serveur statique + inventaire de tracks/ (aucune dépendance)
 scripts/
-  make-demo-tracks.mjs          Écrit un fichier MIDI standard à partir de partitions codées en dur
+  midi-writer.mjs               Écrit un fichier MIDI standard et la grammaire des partitions
+  make-library.mjs              Écrit la bibliothèque de départ dans tracks/, rangée par catégories
+  scores/classique.mjs          Vingt pièces du domaine public, en arrangement simplifié
+  scores/moderne.mjs            Dix pièces originales, dans les esthétiques actuelles
   fetch-samples.mjs             Copie les échantillons de piano en local
   test-protocol.mjs             Vérifie la couche protocole contre la spécification (npm test)
   test-markdown.mjs             Vérifie le convertisseur Markdown (npm test)
 web/
-  index.html  styles.css        L'interface (styles.css porte les deux thèmes)
+  index.html  styles.css        L'interface (styles.css porte les thèmes)
+  geek.html                     Page du second écran : la télémétrie seule, plein écran
   assets/
     brand/                      Logo Epitech et polices de la charte (Anton, IBM Plex Sans)
   js/
@@ -209,6 +244,7 @@ web/
     reader.js                   Lecteur de documentation intégré (bouton 📖)
     markdown.js                 Convertisseur Markdown → HTML, écrit à la main
     geek.js                     Panneau de télémétrie temps réel (« Geek mode »)
+    geek-screen.js              Amorçage de la page du second écran
     lego/
       protocol.js               LEGO Wireless Protocol 3.0 — encodage et décodage complets
       hub.js                    Connexion Web Bluetooth, découverte des ports, file d'écriture
@@ -292,7 +328,7 @@ arrière-plan — mais garde quand même la page visible pour un rendu impeccabl
 
 ## Thèmes
 
-Deux habillages, au choix dans le tiroir de réglages (⚙︎ → **Apparence**) ; le
+Trois habillages, au choix dans le tiroir de réglages (⚙︎ → **Apparence**) ; le
 choix est conservé d'une session à l'autre.
 
 - **Piano** — l'habillage par défaut : bois sombre, laiton, touches ivoire.
@@ -301,6 +337,16 @@ choix est conservé d'une session à l'autre.
   pour les états, titres en **Anton** et texte en **IBM Plex Sans**. Les angles
   sont francs, la grille « blueprint » remplace le grain, et l'underscore
   ponctue les titres, comme dans la charte.
+- **LEGO** — l'interface montée en briques. Le fond est une plaque de base
+  semée de tenons, un bandeau rouge / orange / jaune / vert / bleu court sous la
+  barre supérieure, les panneaux sont coiffés d'une rangée de tenons, les boutons
+  ont l'arête franche du plastique moulé et s'écrasent à l'appui, chaque morceau
+  de la bibliothèque porte sa brique numérotée et la jauge du moteur est une
+  rangée de briques 1×1 qui chauffe du vert au rouge. Surtout, **chacun des douze
+  demi-tons a sa couleur de brique** : une gamme chromatique dessine un
+  arc-en-ciel sur le clavier, du rouge pour le *do* au magenta pour le *si*.
+  Aucune marque n'est reproduite : seulement la palette et la matière du
+  plastique.
 
 Techniquement, toute la couleur de `web/styles.css` passe par des variables CSS.
 Un thème est donc un simple bloc `[data-theme="…"]` qui les redéfinit ;
@@ -339,6 +385,32 @@ Tout y est **mesuré**, jamais simulé : chaque valeur vient d'une API du
 navigateur (Web Audio, Web Bluetooth, Performance) ou d'un compteur incrémenté
 dans le code. La seule grandeur déduite d'un modèle — la vitesse de l'arbre à
 cames — est annoncée comme une estimation.
+
+### Le second écran
+
+Une case à cocher séparée — ⚙︎ → **Démonstration → Second écran** — ouvre la
+télémétrie dans un onglet à part, mise en page pour occuper tout un moniteur :
+six cartes en deux rangées, texte agrandi pour être lisible de loin, le flux
+Bluetooth sur toute la largeur, et un rappel du morceau en cours puisque le
+jukebox est resté sur l'autre écran. Un bouton **Plein écran** y bascule la
+fenêtre en plein écran véritable.
+
+L'onglet déporté ne mesure rien lui-même : il ne peut pas. Un `AudioContext` ne
+se partage pas entre fenêtres, et un hub Bluetooth n'accepte qu'une connexion
+GATT à la fois. C'est donc la fenêtre du jukebox qui construit le panneau
+*dans le document de l'autre* — ce que les navigateurs autorisent entre fenêtres
+de même origine, via `window.opener`. Le code de rendu est le même que celui du
+bandeau intégré : les deux vues ne peuvent pas diverger.
+
+Deux boucles d'affichage l'animent, celle du jukebox et celle du second écran,
+parce qu'un navigateur gèle `requestAnimationFrame` dans une fenêtre masquée :
+si l'une des deux passe derrière, l'autre prend le relais. Le panneau se limite
+lui-même à environ 70 rafraîchissements par seconde, les deux boucles ne se
+cumulent donc pas.
+
+L'option est **désactivée par défaut** et ne se rouvre pas toute seule au
+rechargement : les navigateurs n'ouvrent une fenêtre qu'à la suite d'un clic.
+Si l'onglet est fermé à la main, la case se décoche d'elle-même.
 
 Le panneau coûte environ **0,13 ms par image** quand il est ouvert — 0,8 % du
 budget d'une image à 60 Hz — et rien du tout quand il est fermé : la boucle de
@@ -550,8 +622,16 @@ d'origine n'est pas restauré. À lire avant de se lancer.
   [pybricksdev](https://github.com/pybricks/pybricksdev), tous deux sous licence MIT.
 - **Échantillons de piano** — [Salamander Grand Piano](https://archive.org/details/SalamanderGrandPianoV3)
   d'Alexander Holm, licence Creative Commons BY 3.0, servi par le projet Tone.js.
-- **Morceaux de démonstration** — œuvres du domaine public (Bach, Beethoven), dont
-  les données MIDI ont été saisies pour ce dépôt.
+- **Répertoire classique** — œuvres du domaine public (Bach, Mozart, Beethoven,
+  Chopin, Satie, Joplin…), dont les données MIDI ont été saisies pour ce dépôt.
+  Ce sont des arrangements simplifiés — mélodie et accompagnement sur une
+  trentaine de mesures — et non les partitions intégrales des compositeurs.
+- **Catégorie *Moderne*** — dix pièces **originales**, écrites pour ce dépôt.
+  Elles imitent les esthétiques du piano des cinq dernières années (lo-fi,
+  piano minimaliste, synthwave, amapiano, drill, phonk, dance-pop) mais ne
+  transcrivent aucune chanson existante : les tubes récents sont des œuvres
+  protégées, et une transcription note à note en serait une copie. Pour les
+  avoir dans le jukebox, dépose tes propres fichiers dans `tracks/Moderne/`.
 - **Polices du thème Epitech** — [Anton](https://fonts.google.com/specimen/Anton)
   et [IBM Plex Sans](https://github.com/IBM/plex), toutes deux sous SIL Open
   Font License 1.1. La charte prévoit aussi Space Mono pour les éléments codés ;

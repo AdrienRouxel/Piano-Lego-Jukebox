@@ -3,8 +3,22 @@
  * pochettes générées, les notifications et le journal.
  */
 
-/** À pleine puissance, l'arbre à cames du modèle fait environ 2,2 tours/seconde. */
-export const CAMSHAFT_MAX_TURNS_PER_SECOND = 2.2;
+/**
+ * Vitesse de l'arbre à cames à pleine puissance, en tours par seconde.
+ * Le moteur ne tourne pas en prise directe : le train d'engrenages qui le
+ * sépare de l'axe divise sa vitesse nominale, et l'ondulation des touches est
+ * bien plus lente que le moteur. Estimation à recaler en filmant le modèle.
+ */
+export const CAMSHAFT_MAX_TURNS_PER_SECOND = 0.9;
+
+/**
+ * Position de la came, entre 0 et 1, à partir de laquelle elle commence à
+ * soulever la touche — puis à partir de laquelle la touche est franchement
+ * enfoncée. Le second seuil est haut : sur l'axe réel, seul le sommet de chaque
+ * levier tient une touche en bas, et il n'y en a que quelques-unes à la fois.
+ */
+const LIFT_START = 0.55;
+const PRESS_START = 0.86;
 
 const WHITE_PITCH_CLASSES = new Set([0, 2, 4, 5, 7, 9, 11]);
 const NOTE_LABELS = ['do', 'do♯', 'ré', 'ré♯', 'mi', 'fa', 'fa♯', 'sol', 'sol♯', 'la', 'la♯', 'si'];
@@ -29,6 +43,9 @@ export function buildKeyboard(container, lowMidi, highMidi) {
     const key = document.createElement('span');
     key.className = `key ${isWhiteKey(midi) ? 'white' : 'black'}`;
     key.dataset.midi = String(midi);
+    // La classe de hauteur (do = 0 … si = 11) sert au thème LEGO, qui donne
+    // une couleur de brique à chacun des douze demi-tons.
+    key.dataset.pitchClass = String(((midi % 12) + 12) % 12);
 
     if (isWhiteKey(midi)) {
       key.style.left = `${whiteIndex * whiteWidth}%`;
@@ -77,10 +94,12 @@ export function buildCamshaft(container, lowMidi = 48, count = 25) {
 
       for (const entry of entries) {
         const lift = Math.sin(angle + entry.phase);
-        const pressed = lift > 0.55;
-        const depth = pressed ? ((lift - 0.55) / 0.45) * amplitude : 0;
+        // Le mouvement suit la came sur toute sa montée ; la mise en couleur,
+        // elle, attend le sommet — sans quoi un tiers du clavier reste allumé
+        // en permanence, ce qui ne ressemble ni au modèle ni à la partition.
+        const depth = lift > LIFT_START ? ((lift - LIFT_START) / (1 - LIFT_START)) * amplitude : 0;
         entry.element.style.transform = depth > 0.01 ? `translateY(${(depth * 5).toFixed(2)}px)` : '';
-        entry.element.dataset.on = pressed && amplitude > 0.2 ? '1' : '0';
+        entry.element.dataset.on = lift > PRESS_START && amplitude > 0.2 ? '1' : '0';
       }
     },
     reset() {
@@ -116,13 +135,28 @@ export function noteName(midi) {
 
 /** Couleurs de la charte Epitech utilisables en aplat de pochette. */
 const EPITECH_COVER_COLORS = ['#013afb', '#ff5f3a', '#00ff97', '#ff1ef7', '#7eb9a6'];
+/** Couleurs de briques, dans l'ordre où on les trouve dans une boîte. */
+const LEGO_COVER_COLORS = ['#e3000b', '#ffcf00', '#006db7', '#00852b', '#ff8c01', '#f2f3f2'];
+
+/**
+ * Les quatre tenons d'une brique 2×2, en surimpression : un disque clair
+ * pour le dessus, une ombre en dessous pour le relief.
+ */
+const LEGO_STUDS = [28, 72]
+  .flatMap((x) => [26, 70].map((y) => [x, y]))
+  .flatMap(([x, y]) => [
+    // Le disque passe devant : l'ombre, décalée, ne dépasse que par le bas.
+    `radial-gradient(circle at ${x}% ${y}%, #ffffff4d 0 15%, transparent 15.5%)`,
+    `radial-gradient(circle at ${x}% ${y + 3}%, #00000038 0 15%, transparent 15.5%)`,
+  ])
+  .join(', ');
 
 /**
  * Pochette déterministe, tirée du nom du morceau.
  *
- * Le thème par défaut mélange deux teintes voisines ; le thème Epitech
- * découpe un aplat de la charte en diagonale, comme les surimpressions
- * carrées de la charte.
+ * Le thème par défaut mélange deux teintes voisines ; les deux autres
+ * découpent la pochette en diagonale, dans leur palette — surimpression
+ * carrée pour Epitech, deux briques accolées pour LEGO.
  */
 export function coverStyle(id, theme = 'piano') {
   let hash = 0;
@@ -131,6 +165,15 @@ export function coverStyle(id, theme = 'piano') {
   if (theme === 'epitech') {
     const color = EPITECH_COVER_COLORS[hash % EPITECH_COVER_COLORS.length];
     return `linear-gradient(135deg, ${color} 0 50%, #181818 50% 100%)`;
+  }
+
+  if (theme === 'lego') {
+    const count = LEGO_COVER_COLORS.length;
+    const first = hash % count;
+    // Le décalage évite qu'une pochette tombe sur deux briques identiques.
+    const second = (first + 1 + ((hash >> 8) % (count - 1))) % count;
+    // Deux briques accolées, coiffées de quatre tenons.
+    return `${LEGO_STUDS}, linear-gradient(135deg, ${LEGO_COVER_COLORS[first]} 0 50%, ${LEGO_COVER_COLORS[second]} 50% 100%)`;
   }
 
   const hue = hash % 360;

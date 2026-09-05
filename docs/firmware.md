@@ -184,7 +184,7 @@ while True:
     wait(50)
 ```
 
-Pour aller plus loin, `scripts/make-demo-tracks.mjs` et
+Pour aller plus loin, `scripts/midi-writer.mjs` et
 `web/js/music/choreography.js` montrent comment une partition devient une courbe
 d'activité : rien n'empêche d'exporter cette courbe en une liste
 `(durée, puissance)` et de la coller dans le programme ci-dessus.

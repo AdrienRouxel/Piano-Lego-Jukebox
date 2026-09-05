@@ -76,7 +76,7 @@ const dom = {
 /* ------------------------------------------------------------------ */
 
 /** Réglages d'interface, à côté de ceux de la chorégraphie. */
-const UI_DEFAULTS = { volume: 0.8, theme: 'piano', geek: false, warmup: false, ...HUB_TOOL_SETTINGS };
+const UI_DEFAULTS = { volume: 0.8, theme: 'piano', geek: false, warmup: false, collapsedCategories: [], ...HUB_TOOL_SETTINGS };
 
 const settings = loadSettings();
 const hub = new PianoHub();
@@ -96,7 +96,10 @@ const geek = new GeekMode({
 });
 
 let library = [];
+let categories = [];
 let filtered = [];
+/** Catégories repliées, par nom. Repartir de zéro = tout est déplié. */
+const collapsed = new Set();
 let localSamples = false;
 let currentIndex = -1;
 let audioReady = false;
@@ -157,6 +160,83 @@ function bindThemeControls() {
 /** Bascule du mode geek, installée par `bindSettingsControls`. */
 let toggleGeek = () => {};
 
+/* ------------------------------------------------------------------ */
+/* Second écran                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * La télémétrie peut être déportée dans un onglet séparé, à poser sur un
+ * deuxième moniteur pendant que le jukebox reste sur le premier.
+ *
+ * Le panneau déporté n'est pas une copie : c'est un second `GeekMode` que
+ * *cette* fenêtre construit dans le document de l'autre. Le contexte audio et
+ * la connexion Bluetooth restent ici — il ne peut y en avoir qu'un exemplaire.
+ */
+let secondScreen = null;
+let screenPanel = null;
+/** Remet la case à cocher en accord avec l'état réel de la fenêtre. */
+let syncScreenToggle = () => {};
+
+function openSecondScreen() {
+  if (secondScreen && !secondScreen.closed) {
+    secondScreen.focus();
+    return;
+  }
+  // Surtout pas `noopener` : c'est par `window.opener` que l'autre onglet
+  // vient chercher son panneau.
+  secondScreen = window.open('geek.html', 'jukebox-geek-screen', 'width=1440,height=900');
+  if (!secondScreen) {
+    toast('Le navigateur a bloqué l’ouverture de l’onglet. Autorise les fenêtres surgissantes pour ce site.', 'error', 7000);
+    syncScreenToggle();
+    return;
+  }
+  syncScreenToggle();
+  // Rien ne nous prévient quand l'utilisateur ferme l'onglet à la main.
+  clearInterval(watchScreen.timer);
+  watchScreen.timer = setInterval(watchScreen, 700);
+}
+
+function closeSecondScreen() {
+  clearInterval(watchScreen.timer);
+  secondScreen?.close();
+  secondScreen = null;
+  screenPanel?.destroy();
+  screenPanel = null;
+  syncScreenToggle();
+}
+
+function watchScreen() {
+  if (secondScreen && !secondScreen.closed) return;
+  closeSecondScreen();
+}
+
+/**
+ * Appelée par l'onglet du second écran, qui nous confie son document.
+ * @param {Document} doc document de la fenêtre d'accueil
+ * @returns {{update:(now:number)=>void, destroy:()=>void}}
+ */
+function attachScreen(doc) {
+  screenPanel?.destroy();
+  screenPanel = new GeekMode({
+    hub,
+    getPlayer: () => player,
+    getDriver: () => driver,
+    settings,
+    layout: 'screen',
+  });
+  screenPanel.mount(doc.body);
+  screenPanel.setEnabled(true);
+  return {
+    // Sans argument : c'est toujours l'horloge du jukebox qui fait foi, les
+    // deux fenêtres n'ayant pas la même origine de temps.
+    update: () => screenPanel?.update(performance.now()),
+    destroy: () => {
+      screenPanel?.destroy();
+      screenPanel = null;
+    },
+  };
+}
+
 /** Champs numériques exposés en pourcentage dans l'interface. */
 const RATIO_FIELDS = new Set(['accent', 'sensitivity']);
 
@@ -199,6 +279,13 @@ function bindSettingsControls() {
   toggleGeek = () => setGeek(!settings.geek);
   setGeek(Boolean(settings.geek));
 
+  const screenToggle = el('set-geekScreen');
+  screenToggle.addEventListener('change', () => {
+    if (screenToggle.checked) openSecondScreen();
+    else closeSecondScreen();
+  });
+  syncScreenToggle = () => { screenToggle.checked = Boolean(secondScreen && !secondScreen.closed); };
+
   const direction = el('set-direction');
   direction.checked = settings.direction === -1;
   direction.addEventListener('change', () => {
@@ -238,7 +325,9 @@ async function loadLibrary() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     library = data.tracks;
+    categories = data.categories ?? [];
     localSamples = Boolean(data.localSamples);
+    restoreCollapsed();
     applyFilter();
   } catch (error) {
     dom.empty.hidden = false;
@@ -254,45 +343,146 @@ function applyFilter() {
   renderList();
 }
 
+/* --- Catégories ---------------------------------------------------- */
+
+const CARET = '<svg class="group-caret" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.2 6 8l3.5-3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** Enregistre l'état des plis, pour le retrouver à la prochaine visite. */
+function persistCollapsed() {
+  settings.collapsedCategories = [...collapsed];
+  saveSettings();
+}
+
+/**
+ * Relit l'état des plis, en oubliant les catégories qui n'existent plus —
+ * sinon un dossier supprimé puis recréé reviendrait replié sans raison.
+ */
+function restoreCollapsed() {
+  collapsed.clear();
+  const known = new Set(categories.map((category) => category.name));
+  for (const name of settings.collapsedCategories ?? []) {
+    if (known.has(name)) collapsed.add(name);
+  }
+  persistCollapsed();
+}
+
+function toggleCategory(name) {
+  if (collapsed.has(name)) collapsed.delete(name);
+  else collapsed.add(name);
+  persistCollapsed();
+  renderList();
+}
+
+/** Amène le morceau en cours sous les yeux, sans secousse. */
+function revealCurrent() {
+  const button = dom.list.querySelector('.track[aria-current="true"]');
+  button?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+/** Le message affiché dans une catégorie vide, qui dit où déposer ses fichiers. */
+function categoryHint(name) {
+  const hint = document.createElement('p');
+  hint.className = 'group-hint';
+  hint.innerHTML = `Catégorie vide. Dépose des fichiers <code>.mid</code> ou <code>.mp3</code> dans <code>tracks/${name}/</code>, puis clique sur « Actualiser ».`;
+  return hint;
+}
+
+function trackButton(track, position) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'track';
+  button.setAttribute('aria-current', String(library.indexOf(track) === currentIndex));
+
+  const tags = [
+    track.midiUrl ? '<span class="tag midi">MIDI</span>' : '',
+    track.audioUrl ? '<span class="tag audio">Audio</span>' : '',
+  ].join('');
+
+  button.innerHTML = `
+    <span class="track-index">${position}</span>
+    <span class="track-body">
+      <span class="track-title"></span>
+      <span class="track-artist"></span>
+    </span>
+    <span class="track-tags">${tags}</span>`;
+  button.querySelector('.track-title').textContent = track.title;
+  button.querySelector('.track-artist').textContent = track.artist ?? 'Sans interprète';
+  button.addEventListener('click', () => selectTrack(library.indexOf(track), true));
+  return button;
+}
+
 function renderList() {
   dom.list.textContent = '';
 
-  if (!filtered.length) {
+  if (!filtered.length && !categories.length) {
     dom.empty.hidden = false;
     dom.empty.innerHTML = library.length
       ? 'Aucun morceau ne correspond à ce filtre.'
       : 'Le dossier <code>tracks/</code> est vide.<br />Dépose-y des fichiers <code>.mid</code> ou <code>.mp3</code>, puis clique sur « Actualiser ».';
     return;
   }
+
+  const filtering = dom.search.value.trim() !== '';
+  const byCategory = new Map(categories.map((category) => [category.name, []]));
+  for (const track of filtered) {
+    if (!byCategory.has(track.category)) byCategory.set(track.category, []);
+    byCategory.get(track.category).push(track);
+  }
+  // Pendant un filtrage, une catégorie sans résultat n'a rien à dire.
+  const shown = [...byCategory].filter(([, tracks]) => tracks.length || !filtering);
+
+  if (!shown.length) {
+    dom.empty.hidden = false;
+    dom.empty.innerHTML = 'Aucun morceau ne correspond à ce filtre.';
+    return;
+  }
   dom.empty.hidden = true;
 
+  const current = library[currentIndex];
   const fragment = document.createDocumentFragment();
-  filtered.forEach((track, index) => {
-    const item = document.createElement('li');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'track';
-    button.setAttribute('aria-current', String(library.indexOf(track) === currentIndex));
 
-    const tags = [
-      track.midiUrl ? '<span class="tag midi">MIDI</span>' : '',
-      track.audioUrl ? '<span class="tag audio">Audio</span>' : '',
-    ].join('');
+  for (const [name, tracks] of shown) {
+    // Filtrer déplie tout : sinon les résultats resteraient invisibles.
+    const open = filtering || !collapsed.has(name);
 
-    button.innerHTML = `
-      <span class="track-index">${index + 1}</span>
-      <span class="track-body">
-        <span class="track-title"></span>
-        <span class="track-artist"></span>
-      </span>
-      <span class="track-tags">${tags}</span>`;
-    button.querySelector('.track-title').textContent = track.title;
-    button.querySelector('.track-artist').textContent = track.artist ?? 'Sans interprète';
-    button.addEventListener('click', () => selectTrack(library.indexOf(track), true));
+    const section = document.createElement('section');
+    section.className = 'track-group';
+    section.dataset.category = name;
+    if (current?.category === name) section.dataset.playing = 'true';
 
-    item.append(button);
-    fragment.append(item);
-  });
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'group-head';
+    head.setAttribute('aria-expanded', String(open));
+    head.innerHTML = `${CARET}<span class="group-name"></span><span class="group-count"></span>`;
+    head.querySelector('.group-name').textContent = name;
+    head.querySelector('.group-count').textContent = filtering
+      ? `${tracks.length} / ${library.filter((track) => track.category === name).length}`
+      : String(tracks.length);
+    head.addEventListener('click', () => toggleCategory(name));
+
+    const panel = document.createElement('div');
+    panel.className = 'group-panel';
+    const list = document.createElement('ol');
+    if (tracks.length) {
+      tracks.forEach((track, index) => {
+        const item = document.createElement('li');
+        item.append(trackButton(track, index + 1));
+        list.append(item);
+      });
+    } else {
+      const item = document.createElement('li');
+      item.append(categoryHint(name));
+      list.append(item);
+    }
+    panel.append(list);
+    // Replié, le contenu sort du parcours au clavier et de la lecture d'écran.
+    panel.inert = !open;
+    panel.setAttribute('aria-hidden', String(!open));
+
+    section.append(head, panel);
+    fragment.append(section);
+  }
   dom.list.append(fragment);
 }
 
@@ -339,7 +529,10 @@ async function selectTrack(index, autoplay = false) {
 
   currentIndex = index;
   const track = library[index];
+  // Lancer un morceau déplie sa catégorie : on doit voir ce qui joue.
+  if (collapsed.delete(track.category)) persistCollapsed();
   renderList();
+  revealCurrent();
 
   dom.nowTitle.textContent = track.title;
   dom.nowArtist.textContent = track.artist ?? 'Sans interprète';
@@ -486,6 +679,9 @@ function frame(now) {
   dom.vizPower.textContent = power ? `Moteur ${Math.abs(power)} %` : 'Moteur à l’arrêt';
 
   geek.update(now);
+  // Le second écran suit l'horloge de cette fenêtre-ci, quelle que soit celle
+  // qui déclenche le rafraîchissement.
+  screenPanel?.update(now);
 
   requestAnimationFrame(frame);
 }
@@ -617,11 +813,13 @@ function wireUi() {
     }
   });
 
-  // Filet de sécurité : on ne laisse jamais le moteur tourner sans surveillance.
+  // Filet de sécurité : on ne laisse jamais le moteur tourner sans surveillance,
+  // ni un second écran orphelin derrière soi.
   const panic = () => {
     warmup.cancel();
     driver?.stop();
     hub.stopMotor();
+    secondScreen?.close();
   };
   window.addEventListener('pagehide', panic);
   window.addEventListener('beforeunload', panic);
@@ -641,7 +839,7 @@ function boot() {
   }
   // Accès depuis la console du navigateur dès le chargement : le lecteur s'y
   // ajoute plus tard, quand le contexte audio est créé.
-  window.jukebox = { hub, settings, geek, driver: null, player: null };
+  window.jukebox = { hub, settings, geek, attachScreen, driver: null, player: null };
 
   geek.mount();
   bindThemeControls();

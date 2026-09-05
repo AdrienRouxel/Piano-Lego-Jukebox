@@ -172,7 +172,20 @@ code {
 }
 .brand-text small { color: var(--ink-3); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; }
 
-.topbar-actions { display: flex; align-items: center; gap: 10px; }
+/* `wrap` est un filet : quelle que soit la largeur, la police ou la longueur
+   des libellés, rien ne sort de l'écran par la droite. */
+.topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+
+/* Sur un téléphone, les quatre éléments réclament 362 px pour 343 px
+   disponibles. On passe l'état du piano sur sa propre ligne, et les trois
+   boutons en dessous — l'ordre du DOM est conservé, donc celui du clavier
+   aussi. */
+@media (max-width: 420px) {
+  .topbar { gap: 12px; }
+  .topbar-actions { width: 100%; }
+  .hub-pill { flex: 1 0 100%; justify-content: center; }
+  #btn-connect { flex: 1; }
+}
 
 .hub-pill {
   display: inline-flex;
@@ -440,12 +453,29 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* ---------------------------------------------------------------- */
 
 .library { padding: 20px; display: grid; gap: 14px; align-content: start; min-height: 0; }
-/* En deux colonnes, la liste défile dans son panneau plutôt que d'étirer la page. */
+/* En deux colonnes, la liste défile dans son panneau plutôt que d'étirer la page.
+   Les trois rangées : l'en-tête, la liste (seule à s'étirer et à défiler), le
+   message de bibliothèque vide. Sans `minmax(0, 1fr)`, la liste garderait sa
+   hauteur naturelle et déborderait par le bas. */
 @media (min-width: 1021px) {
-  .library { max-height: calc(100vh - 130px); }
+  .library {
+    max-height: calc(100vh - 130px);
+    align-content: stretch;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
 }
 
-.library-head { display: grid; gap: 10px; }
+/* Deux protections contre le débordement sous ~350 px, où le champ de
+   recherche est plus large que le panneau :
+   `min-width: 0` empêche cet élément d'imposer sa largeur intrinsèque à la
+   colonne de `.library` ; `minmax(0, 1fr)` fait de même pour sa propre
+   colonne, vis-à-vis du titre et de la barre d'outils. */
+.library-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
 .library-head h2 {
   margin: 0;
   font-family: var(--display);
@@ -455,6 +485,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .library-tools { display: flex; gap: 8px; }
 .library-tools input {
   flex: 1;
+  /* Un `input` a une largeur intrinsèque d'une vingtaine de caractères, qui
+     l'empêche de rétrécir : sans ça, la barre déborde sous ~350 px. */
+  min-width: 0;
   background: var(--field);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -465,13 +498,103 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .library-tools input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .track-list {
-  list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: 2px;
+  align-content: start;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+/* --- Catégories repliables ---------------------------------------- */
+
+.track-group { display: grid; }
+.track-group + .track-group { margin-top: 6px; }
+
+.group-head {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* La liste défile sous les en-têtes : sans fond, le texte se superposerait.
+     Le panneau étant un dégradé, on floute plutôt que de plaquer un aplat. */
+  background: var(--panel);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  backdrop-filter: blur(10px);
+}
+.group-head:hover { color: var(--ink); background: var(--hover); }
+.group-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.group-caret {
+  transition: transform .18s ease;
+  color: var(--ink-3);
+}
+.group-head[aria-expanded="false"] .group-caret { transform: rotate(-90deg); }
+
+.group-name {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.group-count {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.track-group[data-playing="true"] .group-count { color: var(--accent); }
+
+/* Replier sans figer de hauteur : la piste de grille passe de 0fr à 1fr. */
+.group-panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows .22s ease;
+}
+.group-panel[hidden] { display: grid; }
+.group-head[aria-expanded="false"] + .group-panel { grid-template-rows: 0fr; }
+.group-panel > ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  gap: 4px;
+}
+.group-head[aria-expanded="true"] + .group-panel > ol { padding-bottom: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .group-panel { transition: none; }
+  .group-caret { transition: none; }
+}
+
+.group-hint {
+  margin: 0;
+  padding: 4px 12px 10px 34px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.group-hint code {
+  font-size: 11.5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--field);
 }
 
 .track {
@@ -1004,6 +1127,121 @@ body.geek-on .layout { padding-bottom: min(56vh, 580px); }
 }
 
 /* ---------------------------------------------------------------- */
+/* Mode geek — variante plein écran (second moniteur)                */
+/*                                                                   */
+/* Même panneau, même code : seules les dimensions changent. La page  */
+/* `geek.html` n'affiche que ça, on peut donc occuper toute la        */
+/* hauteur et grossir le texte pour qu'il se lise à deux mètres.      */
+/* ---------------------------------------------------------------- */
+
+body.geek-screen {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--geek-bg);
+}
+
+.geek-full {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  /* Au moins la hauteur de l'écran, davantage si le contenu l'exige : mieux
+     vaut une page qui défile qu'une carte silencieusement rognée. */
+  min-height: 100vh;
+  max-height: none;
+  overflow: visible;
+  border-top: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+.geek-full .geek-head {
+  padding: 12px clamp(16px, 2vw, 28px);
+  gap: 14px;
+}
+.geek-full .geek-name { font-size: 14px; }
+.geek-full .geek-tagline { flex: 0 0 auto; font-size: 12.5px; }
+.geek-full .geek-led { width: 9px; height: 9px; }
+
+/* Le morceau en cours : le jukebox est resté sur l'autre écran. */
+.geek-now {
+  flex: 1;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.geek-wide-btn {
+  width: auto;
+  padding: 0 12px;
+  height: 28px;
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+/* Six cartes en deux rangées, puis le flux brut : tout tient sans défiler. */
+.geek-full .geek-grid {
+  flex: 1;
+  grid-template-columns: repeat(3, 1fr);
+  /* Les cartes prennent leur hauteur naturelle ; le flux brut absorbe ce qui
+     reste, et grandit donc avec la taille de l'écran. */
+  grid-template-rows: auto auto minmax(150px, 1fr);
+  border-bottom: 0;
+}
+.geek-full .geek-card {
+  padding: 12px 20px 12px;
+  display: flex;
+  flex-direction: column;
+}
+.geek-full .geek-card h4 { font-size: 12px; letter-spacing: .18em; margin-bottom: 8px; }
+.geek-full .geek-note { font-size: 11.5px; }
+.geek-full .geek-canvas { margin-bottom: 10px; }
+
+.geek-full .geek-metrics {
+  align-content: start;
+  gap: 1px 20px;
+  font-size: 13px;
+  line-height: 1.32;
+}
+.geek-full .geek-metrics dt { font-size: 12.5px; }
+
+.geek-full .geek-stream {
+  flex: 1;
+  min-height: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: auto;
+}
+.geek-full .geek-idle { font-size: 13px; }
+
+/* Page ouverte hors de son contexte : on explique plutôt que d'afficher du vide. */
+.geek-orphan {
+  margin: 0;
+  height: 100vh;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 0 24px;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+.geek-orphan strong { color: var(--accent); font-weight: 600; }
+
+/* Sur un écran étroit — un portable en second moniteur — deux colonnes. */
+@media (max-width: 1240px) {
+  .geek-full .geek-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: auto auto auto minmax(140px, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- */
 /* Notifications                                                     */
 /* ---------------------------------------------------------------- */
 
@@ -1209,7 +1447,8 @@ body.geek-on .layout { padding-bottom: min(56vh, 580px); }
 [data-theme="epitech"] .hub-pill,
 [data-theme="epitech"] .badge,
 [data-theme="epitech"] .toast,
-[data-theme="epitech"] .track { border-radius: var(--radius); }
+[data-theme="epitech"] .track,
+[data-theme="epitech"] .group-head { border-radius: var(--radius); }
 [data-theme="epitech"] .hub-pill .dot { border-radius: 0; }
 [data-theme="epitech"] .tag { border-radius: 0; }
 [data-theme="epitech"] input[type="range"],
@@ -1668,8 +1907,18 @@ body.geek-on .layout { padding-bottom: min(56vh, 580px); }
   --panel-grad: linear-gradient(180deg, #2b3a42, #223038);
   --drawer-bg: linear-gradient(180deg, #33434c, #1a2830);
   --toast-bg: #2b3a42f2;
-  /* Deux briques accolées, comme sur une boîte. */
-  --cover-grad: linear-gradient(135deg, #e3000b 0 50%, #ffcf00 50% 100%);
+  /* Une brique 2×2 : deux couleurs accolées, coiffées de leurs tenons.
+     La version calculée par morceau est dans ui.js (coverStyle). */
+  --cover-grad:
+    radial-gradient(circle at 28% 26%, #ffffff4d 0 15%, transparent 15.5%),
+    radial-gradient(circle at 28% 29%, #00000038 0 15%, transparent 15.5%),
+    radial-gradient(circle at 28% 70%, #ffffff4d 0 15%, transparent 15.5%),
+    radial-gradient(circle at 28% 73%, #00000038 0 15%, transparent 15.5%),
+    radial-gradient(circle at 72% 26%, #ffffff4d 0 15%, transparent 15.5%),
+    radial-gradient(circle at 72% 29%, #00000038 0 15%, transparent 15.5%),
+    radial-gradient(circle at 72% 70%, #ffffff4d 0 15%, transparent 15.5%),
+    radial-gradient(circle at 72% 73%, #00000038 0 15%, transparent 15.5%),
+    linear-gradient(135deg, #e3000b 0 50%, #ffcf00 50% 100%);
   --cover-ink: #05131d59;
   --gloss: linear-gradient(160deg, #ffffff2b, transparent 45%);
 
@@ -1679,7 +1928,7 @@ body.geek-on .layout { padding-bottom: min(56vh, 580px); }
   --key-black: linear-gradient(180deg, #223038, #05131d);
   --key-black-line: #000;
   --key-on-white: var(--accent-grad);
-  --key-on-black: linear-gradient(180deg, #c9a300, #8a6f00);
+  --key-on-black: linear-gradient(180deg, #e8bd00, #9c7d00);
 
   --sensor-grad: linear-gradient(90deg, #006db7, #6ab7ec);  /* bleu brillant */
   --tag-midi: #6ab7ec;
@@ -1742,3 +1991,150 @@ body.geek-on .layout { padding-bottom: min(56vh, 580px); }
 [data-theme="lego"] .stage,
 [data-theme="lego"] .library,
 [data-theme="lego"] .toast { box-shadow: var(--shadow), inset 0 1px 0 #ffffff17; }
+
+/* --- Les couleurs de la boîte ------------------------------------- */
+
+[data-theme="lego"] {
+  --brick-red: #e3000b;
+  --brick-orange: #ff8c01;
+  --brick-yellow: #ffcf00;
+  --brick-lime: #9aca3c;
+  --brick-green: #00852b;
+  --brick-teal: #009ba4;
+  --brick-blue: #006db7;
+  --brick-indigo: #3f6fd8;
+  --brick-violet: #6c3fa0;
+  --brick-magenta: #b23a90;
+  --brick-pink: #d3359b;
+  --brick-brown: #c26a12;
+}
+
+/* Une rangée de briques sous la barre supérieure : c'est le premier
+   signal du thème, avant même de lire quoi que ce soit. */
+[data-theme="lego"] .topbar { border-bottom-color: transparent; }
+[data-theme="lego"] .topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: linear-gradient(90deg,
+    var(--brick-red) 0 20%,
+    var(--brick-orange) 20% 40%,
+    var(--brick-yellow) 40% 60%,
+    var(--brick-green) 60% 80%,
+    var(--brick-blue) 80% 100%);
+}
+
+/* Les panneaux sont des briques : une rangée de tenons dépasse en haut. */
+[data-theme="lego"] .stage,
+[data-theme="lego"] .library { position: relative; }
+[data-theme="lego"] .stage::before,
+[data-theme="lego"] .library::before {
+  content: "";
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: -10px;
+  height: 11px;
+  /* Un demi-disque tous les 34 px : le cercle est centré sur l'arête basse
+     de la bande, seule sa moitié haute dépasse du panneau. */
+  background-image: radial-gradient(circle at 13px 11px, var(--panel-2) 0 12px, transparent 12.5px);
+  background-size: 34px 11px;
+  pointer-events: none;
+}
+
+/* Boutons moulés : une arête franche dessous, qui s'écrase à l'appui. */
+[data-theme="lego"] .btn { box-shadow: 0 3px 0 #05131d6b; }
+[data-theme="lego"] .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #05131d6b; }
+[data-theme="lego"] .btn-ghost { box-shadow: none; }
+[data-theme="lego"] .btn-ghost:active { transform: translateY(1px); }
+[data-theme="lego"] .btn-play { box-shadow: 0 4px 0 var(--accent-line), var(--accent-glow); }
+[data-theme="lego"] .btn-play:active { box-shadow: 0 1px 0 var(--accent-line); }
+
+/* Chaque morceau reçoit sa brique, dans l'ordre de la boîte. Le compte
+   repart à zéro dans chaque catégorie — comme un sachet par sachet. */
+[data-theme="lego"] .track-list li:nth-child(6n+1) { --brick: var(--brick-red);    --brick-ink: #ffffff; }
+[data-theme="lego"] .track-list li:nth-child(6n+2) { --brick: var(--brick-yellow); --brick-ink: #05131d; }
+[data-theme="lego"] .track-list li:nth-child(6n+3) { --brick: var(--brick-blue);   --brick-ink: #ffffff; }
+[data-theme="lego"] .track-list li:nth-child(6n+4) { --brick: var(--brick-green);  --brick-ink: #ffffff; }
+[data-theme="lego"] .track-list li:nth-child(6n+5) { --brick: var(--brick-orange); --brick-ink: #05131d; }
+[data-theme="lego"] .track-list li:nth-child(6n+6) { --brick: var(--brick-violet); --brick-ink: #ffffff; }
+
+/* L'en-tête de catégorie devient une tuile posée sur la plaque. */
+[data-theme="lego"] .group-head {
+  background: var(--panel-2);
+  border-radius: 6px;
+  box-shadow: inset 0 -2px 0 #00000026;
+}
+[data-theme="lego"] .group-head:hover { background: var(--hover); }
+[data-theme="lego"] .track-index {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--brick);
+  color: var(--brick-ink);
+  font-weight: 700;
+  font-size: 12.5px;
+  box-shadow: inset 0 -2px 0 #00000033, inset 0 1px 0 #ffffff40;
+}
+[data-theme="lego"] .track[aria-current="true"] .track-index { color: var(--brick-ink); }
+[data-theme="lego"] .track[aria-current="true"] { border-color: var(--brick); }
+
+/* Étiquettes et badges deviennent des tuiles pleines. */
+[data-theme="lego"] .tag {
+  border-color: transparent;
+  color: #05131d;
+  font-weight: 700;
+}
+[data-theme="lego"] .tag.midi { background: var(--tag-midi); }
+[data-theme="lego"] .tag.audio { background: var(--tag-audio); }
+[data-theme="lego"] .badge.accent {
+  background: var(--accent);
+  border-color: var(--accent-edge);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* La jauge du moteur est une rangée de briques 1×1 qui chauffe du vert au
+   rouge. Le dégradé a une taille fixe : la teinte dépend de la position
+   atteinte, pas de la largeur courante de la barre — c'est ce qui en fait
+   une jauge lisible plutôt qu'un arc-en-ciel comprimé. */
+[data-theme="lego"] .power-bar { height: 10px; }
+[data-theme="lego"] .power-bar span {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 11px, var(--well) 11px 13px),
+    linear-gradient(90deg,
+      var(--brick-green) 0%,
+      var(--brick-lime) 28%,
+      var(--brick-yellow) 55%,
+      var(--brick-orange) 78%,
+      var(--brick-red) 100%);
+  background-size: auto, 620px 100%;
+  background-repeat: repeat, no-repeat;
+}
+
+/* --- Douze demi-tons, douze briques -------------------------------- */
+
+[data-theme="lego"] .key[data-pitch-class="0"]  { --brick: var(--brick-red); }
+[data-theme="lego"] .key[data-pitch-class="1"]  { --brick: var(--brick-pink); }
+[data-theme="lego"] .key[data-pitch-class="2"]  { --brick: var(--brick-orange); }
+[data-theme="lego"] .key[data-pitch-class="3"]  { --brick: var(--brick-brown); }
+[data-theme="lego"] .key[data-pitch-class="4"]  { --brick: var(--brick-yellow); }
+[data-theme="lego"] .key[data-pitch-class="5"]  { --brick: var(--brick-lime); }
+[data-theme="lego"] .key[data-pitch-class="6"]  { --brick: var(--brick-teal); }
+[data-theme="lego"] .key[data-pitch-class="7"]  { --brick: var(--brick-green); }
+[data-theme="lego"] .key[data-pitch-class="8"]  { --brick: var(--brick-blue); }
+[data-theme="lego"] .key[data-pitch-class="9"]  { --brick: var(--brick-indigo); }
+[data-theme="lego"] .key[data-pitch-class="10"] { --brick: var(--brick-violet); }
+[data-theme="lego"] .key[data-pitch-class="11"] { --brick: var(--brick-magenta); }
+
+[data-theme="lego"] .key[data-on="1"].white {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brick) 72%, #fff), var(--brick));
+}
+[data-theme="lego"] .key[data-on="1"].black {
+  background: linear-gradient(180deg, var(--brick), color-mix(in srgb, var(--brick) 58%, #05131d));
+}

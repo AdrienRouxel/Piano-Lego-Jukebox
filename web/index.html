@@ -114,7 +114,7 @@
           <button class="btn btn-ghost" id="btn-refresh" type="button" title="Relire le dossier tracks/">Actualiser</button>
         </div>
       </div>
-      <ol class="track-list" id="track-list"></ol>
+      <div class="track-list" id="track-list"></div>
       <p class="library-empty" id="library-empty" hidden></p>
     </section>
   </main>
@@ -147,7 +147,7 @@
               <span>LEGO</span>
             </label>
           </div>
-          <p class="hint"><strong>Epitech</strong> applique la charte graphique de l’école : bleu <code>#013afb</code>, titres en Anton, texte en IBM Plex Sans. <strong>LEGO</strong> reprend les couleurs des briques : jaune sur plaque de base, touches en blanc et noir de brique.</p>
+          <p class="hint"><strong>Epitech</strong> applique la charte graphique de l’école : bleu <code>#013afb</code>, titres en Anton, texte en IBM Plex Sans. <strong>LEGO</strong> monte l’interface en briques : plaque de base à tenons, bandeau de couleurs sous la barre, panneaux coiffés de tenons — et une brique de couleur par demi-ton sur le clavier.</p>
         </div>
       </details>
 
@@ -233,6 +233,11 @@
             <span>Geek mode</span>
           </label>
           <p class="hint">Ouvre un bandeau de télémétrie en bas de l’écran : traitement du signal, ordonnanceur de notes, trames Bluetooth, performances de la machine. Tout y est mesuré en direct, rien n’est simulé. Raccourci&nbsp;: touche <code>G</code>.</p>
+          <label class="switch">
+            <input type="checkbox" id="set-geekScreen" />
+            <span>Second écran (onglet séparé)</span>
+          </label>
+          <p class="hint">Pour une démonstration sur deux moniteurs&nbsp;: le jukebox d’un côté, la télémétrie de l’autre, en plein écran. L’onglet se ferme avec cette case, et ne se rouvre pas tout seul au rechargement — les navigateurs n’ouvrent une fenêtre qu’à la suite d’un clic.</p>
         </div>
       </details>
 
