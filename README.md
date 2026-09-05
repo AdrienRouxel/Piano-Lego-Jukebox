@@ -14,6 +14,9 @@ npm start          # puis ouvrir http://localhost:4173 dans Chrome ou Edge
 > 📖 **Première fois ?** Le [**guide pas à pas**](docs/guide.md) décrit chaque
 > geste, sur le piano comme sur l'ordinateur, et ce que tu dois voir à chaque
 > étape. Ce README-ci explique plutôt *comment ça marche*.
+>
+> Les deux se lisent **directement dans l'application** : bouton 📖 en haut à
+> droite, ou touche <kbd>?</kbd>. Pas besoin d'aller chercher un fichier.
 
 ---
 
@@ -194,6 +197,7 @@ scripts/
   make-demo-tracks.mjs          Écrit un fichier MIDI standard à partir de partitions codées en dur
   fetch-samples.mjs             Copie les échantillons de piano en local
   test-protocol.mjs             Vérifie la couche protocole contre la spécification (npm test)
+  test-markdown.mjs             Vérifie le convertisseur Markdown (npm test)
 web/
   index.html  styles.css        L'interface (styles.css porte les deux thèmes)
   assets/
@@ -202,6 +206,8 @@ web/
     main.js                     Assemblage : bibliothèque, lecteur, hub, interface
     ui.js                       Claviers, pochettes, notifications, journal
     hubtools.js                 Panneaux matériel : infos, essais, capteur, console LWP3
+    reader.js                   Lecteur de documentation intégré (bouton 📖)
+    markdown.js                 Convertisseur Markdown → HTML, écrit à la main
     geek.js                     Panneau de télémétrie temps réel (« Geek mode »)
     lego/
       protocol.js               LEGO Wireless Protocol 3.0 — encodage et décodage complets
@@ -313,25 +319,31 @@ Un interrupteur dans le tiroir de réglages (⚙︎ → **Démonstration**), ou 
 qui se passe sous l'interface — pensé pour les journées portes ouvertes, où la
 question « mais concrètement, il y a quoi derrière ? » revient à chaque visite.
 
-Cinq cartes, plus le flux Bluetooth brut :
+Six cartes, plus le flux Bluetooth brut :
 
 | Carte | Ce qu'on y voit |
 | --- | --- |
-| **Chaîne audio · DSP** | Spectre FFT en direct, fréquence d'échantillonnage, taille de fenêtre et résolution spectrale, latence matérielle (`baseLatency` + `outputLatency`), niveau RMS et crête en dBFS, centroïde spectral, réduction du limiteur, polyphonie |
-| **Ordonnanceur · partition** | Horloge de référence, position au milliseconde, fenêtre d'anticipation, cycles d'ordonnancement, notes programmées et manquées, dérive entre l'horloge audio et celle du système, tempo, mesure et temps en cours, densité de notes |
-| **Chorégraphie · moteur** | Activité normalisée, accent, consigne PWM, plage de puissance, avance appliquée, cadence et gigue du minuteur du pilote, vitesse estimée de l'arbre à cames, capteur de distance |
-| **Liaison Bluetooth LE** | Service GATT, micrologiciel et version du protocole, RSSI, batterie, tension et courant mesurés par le hub, trames émises et reçues, débit, latence d'écriture GATT, profondeur de la file |
+| **Chaîne audio · DSP** | Spectre FFT et oscilloscope de la forme d'onde, fréquence d'échantillonnage, taille de fenêtre et résolution spectrale, latence matérielle (`baseLatency` + `outputLatency`), niveau RMS et crête en dBFS, centroïde spectral, réduction du limiteur, polyphonie |
+| **Ordonnanceur · partition** | Courbe des notes en train de sonner, horloge de référence, position au milliseconde, fenêtre d'anticipation, cycles d'ordonnancement, notes programmées et manquées, dérive entre l'horloge audio et celle du système, tempo, mesure et temps en cours, densité de notes |
+| **Chorégraphie · moteur** | Activité normalisée, accent, consigne PWM, plage de puissance, avance appliquée face à la **latence réellement mesurée** (audio + BLE), cadence et gigue du minuteur, vitesse estimée de l'arbre à cames, profil de démarrage (rampe / freinage), mode du capteur et sa lecture |
+| **Liaison Bluetooth LE** | Service GATT, micrologiciel et version du protocole, RSSI, trames émises et reçues, débit, latence d'écriture GATT, profondeur de la file, accusés de réception attendus, reconnexions automatiques |
+| **Alimentation · alertes** | Tension et courant mesurés par le hub, superposés sur un même cadre, puissance appelée, charge et type de piles, et les quatre alertes du protocole (tension basse, courant élevé, signal faible, surpuissance) qui passent en rouge quand elles se déclenchent |
 | **Rendu · machine** | Images par seconde, temps par image (moyenne et p95), images longues, tas JavaScript, cœurs logiques, mémoire, zone d'affichage |
 | **Flux Bluetooth brut** | Chaque message échangé avec le hub, en hexadécimal, suivi de sa traduction selon le LEGO Wireless Protocol 3.0 |
+
+La carte **Alimentation** est la plus parlante quand le piano est branché : le
+courant grimpe à chaque fois que l'arbre à cames force, et la tension s'affaisse
+en retour. C'est la mécanique du modèle, lue à travers le Bluetooth.
 
 Tout y est **mesuré**, jamais simulé : chaque valeur vient d'une API du
 navigateur (Web Audio, Web Bluetooth, Performance) ou d'un compteur incrémenté
 dans le code. La seule grandeur déduite d'un modèle — la vitesse de l'arbre à
 cames — est annoncée comme une estimation.
 
-Le panneau coûte environ **0,15 ms par image** quand il est ouvert — moins de
-1 % du budget d'une image à 60 Hz — et rien du tout quand il est fermé : la
-boucle de rafraîchissement sort à sa première ligne.
+Le panneau coûte environ **0,13 ms par image** quand il est ouvert — 0,8 % du
+budget d'une image à 60 Hz — et rien du tout quand il est fermé : la boucle de
+rafraîchissement sort à sa première ligne. Les courbes sont redessinées à chaque
+image, les quelque soixante valeurs chiffrées seulement dix fois par seconde.
 
 ---
 

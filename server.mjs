@@ -22,6 +22,16 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(ROOT, 'web');
 const TRACKS_DIR = path.join(ROOT, 'tracks');
 const SAMPLES_DIR = path.join(WEB_DIR, 'assets', 'piano');
+
+/**
+ * Documentation consultable depuis le site. Liste fermée : on sert ces
+ * fichiers-là et aucun autre, quel que soit le chemin demandé.
+ */
+const DOCS = [
+  { id: 'guide.md', file: path.join(ROOT, 'docs', 'guide.md'), title: 'Guide pas à pas', subtitle: 'Connecter le piano et se servir de l’application' },
+  { id: 'README.md', file: path.join(ROOT, 'README.md'), title: 'Comment ça marche', subtitle: 'La mécanique, le protocole, la chorégraphie' },
+  { id: 'firmware.md', file: path.join(ROOT, 'docs', 'firmware.md'), title: 'Micrologiciel', subtitle: 'Pybricks, et le retour au firmware LEGO' },
+];
 const PORT = Number(process.env.PORT) || 4173;
 
 const MIDI_EXT = new Set(['.mid', '.midi']);
@@ -212,6 +222,29 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   try {
+    if (pathname === '/api/docs') {
+      sendJson(res, 200, {
+        docs: DOCS.map(({ id, title, subtitle }) => ({ id, title, subtitle })),
+      });
+      return;
+    }
+
+    if (pathname.startsWith('/api/docs/')) {
+      // Le nom demandé est comparé à la liste, jamais transformé en chemin.
+      const doc = DOCS.find((entry) => entry.id === decodeURIComponent(pathname.slice('/api/docs/'.length)));
+      if (!doc) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('404 — document inconnu');
+        return;
+      }
+      try {
+        const markdown = await fsp.readFile(doc.file, 'utf8');
+        sendJson(res, 200, { id: doc.id, title: doc.title, subtitle: doc.subtitle, markdown });
+      } catch {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('404 — document introuvable sur le disque');
+      }
+      return;
+    }
+
     if (pathname === '/api/library') {
       const [tracks, localSamples] = await Promise.all([scanLibrary(), hasLocalSamples()]);
       sendJson(res, 200, {

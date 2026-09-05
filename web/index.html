@@ -12,7 +12,8 @@
     // en passant par le thème par défaut. Même clé que les réglages.
     try {
       const stored = JSON.parse(localStorage.getItem('lego-piano-jukebox/settings') ?? '{}');
-      if (stored.theme === 'epitech') document.documentElement.dataset.theme = 'epitech';
+      // « piano » est le thème par défaut : il n'a pas d'attribut.
+      if (['epitech', 'lego'].includes(stored.theme)) document.documentElement.dataset.theme = stored.theme;
     } catch { /* stockage indisponible : thème par défaut */ }
   </script>
 </head>
@@ -38,6 +39,9 @@
         <span class="hub-battery" id="hub-battery" hidden></span>
       </div>
       <button class="btn btn-primary" id="btn-connect" type="button">Connecter le piano</button>
+      <button class="btn btn-icon" id="btn-guide" type="button" aria-label="Guide" title="Guide — comment connecter le piano">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.2A1.2 1.2 0 0 1 5.2 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.8A1.2 1.2 0 0 1 20 5.2v12.1a1.2 1.2 0 0 1-1.2 1.2H14a2.5 2.5 0 0 0-2 1 2.5 2.5 0 0 0-2-1H5.2A1.2 1.2 0 0 1 4 17.3z"/><path d="M12 5v14"/></svg>
+      </button>
       <button class="btn btn-icon" id="btn-settings" type="button" aria-label="Réglages" title="Réglages">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.2 12H2M22 12h-2.2M6.1 6.1 4.5 4.5M19.5 19.5l-1.6-1.6M17.9 6.1l1.6-1.6M4.5 19.5l1.6-1.6"/></svg>
       </button>
@@ -138,8 +142,12 @@
               <input type="radio" name="theme" value="epitech" />
               <span>Epitech</span>
             </label>
+            <label>
+              <input type="radio" name="theme" value="lego" />
+              <span>LEGO</span>
+            </label>
           </div>
-          <p class="hint">Le thème « Epitech » applique la charte graphique de l’école : bleu <code>#013afb</code>, titres en Anton, texte en IBM Plex Sans.</p>
+          <p class="hint"><strong>Epitech</strong> applique la charte graphique de l’école : bleu <code>#013afb</code>, titres en Anton, texte en IBM Plex Sans. <strong>LEGO</strong> reprend les couleurs des briques : jaune sur plaque de base, touches en blanc et noir de brique.</p>
         </div>
       </details>
 
@@ -431,6 +439,26 @@
       <span class="warmup-notes" aria-hidden="true"><i>♪</i><i>♫</i><i>♪</i></span>
     </div>
     <p class="warmup-skip">Clique pour passer l’introduction · Échap pour l’annuler</p>
+  </div>
+
+  <!-- ---------------------------------------------------------------- -->
+  <div class="reader" id="reader" hidden role="dialog" aria-modal="true" aria-labelledby="reader-title">
+    <div class="reader-panel">
+      <header class="reader-head">
+        <div class="reader-heading">
+          <h2 id="reader-title">Guide</h2>
+          <p id="reader-subtitle"></p>
+        </div>
+        <button class="btn btn-icon" id="btn-reader-close" type="button" aria-label="Fermer le guide">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <nav class="reader-tabs" id="reader-tabs" aria-label="Documents"></nav>
+      <div class="reader-main">
+        <nav class="reader-toc" id="reader-toc" aria-label="Sommaire"></nav>
+        <article class="reader-body prose" id="reader-body"></article>
+      </div>
+    </div>
   </div>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

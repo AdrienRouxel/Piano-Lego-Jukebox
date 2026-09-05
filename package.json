@@ -11,7 +11,7 @@
     "start": "node server.mjs",
     "dev": "node server.mjs",
     "fetch-samples": "node scripts/fetch-samples.mjs",
-    "test": "node scripts/test-protocol.mjs"
+    "test": "node scripts/test-protocol.mjs && node scripts/test-markdown.mjs"
   },
   "license": "MIT"
 }

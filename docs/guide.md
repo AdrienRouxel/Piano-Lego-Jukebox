@@ -211,6 +211,9 @@ Pendant la lecture :
 - **La pastille d'état** — gris : déconnecté ; orange clignotant : connexion ou
   reconnexion en cours ; vert : connecté, avec le nom du hub et la batterie.
 - **« Connecter le piano »** — ouvre le sélecteur Bluetooth.
+- **📖** — ouvre ce guide, sans quitter la page. Le panneau contient aussi les
+  deux autres documents du projet : *Comment ça marche* et *Micrologiciel*. Un
+  sommaire à gauche permet de sauter directement à une section.
 - **⚙︎** — ouvre le tiroir de réglages.
 
 ### La scène
@@ -243,6 +246,7 @@ fichiers existent pour chaque morceau.
 | `⇧ →` | Morceau suivant |
 | `⇧ ←` | Morceau précédent |
 | `G` | Ouvre ou ferme le Geek mode |
+| `?` | Ouvre ce guide |
 | `Échap` | Ferme le tiroir de réglages (ou annule la mise en route) |
 
 ---

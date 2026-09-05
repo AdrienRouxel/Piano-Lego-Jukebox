@@ -16,6 +16,7 @@ import { MotionDriver, DEFAULT_SETTINGS } from './music/choreography.js';
 import { Warmup } from './music/warmup.js';
 import { GeekMode } from './geek.js';
 import { wireHubTools, HUB_TOOL_SETTINGS } from './hubtools.js';
+import { DocReader } from './reader.js';
 import {
   buildKeyboard,
   buildCamshaft,
@@ -62,6 +63,7 @@ const dom = {
 
   drawer: el('drawer'),
   scrim: el('scrim'),
+  guide: el('btn-guide'),
   openSettings: el('btn-settings'),
   closeSettings: el('btn-close-settings'),
   warmup: el('warmup'),
@@ -83,6 +85,9 @@ let player = null;
 let driver = null;
 
 // Le panneau de télémétrie lit l'état des trois briques ; il ne les pilote pas.
+// Le guide et la documentation, consultables sans quitter la page.
+const reader = new DocReader();
+
 const geek = new GeekMode({
   hub,
   getPlayer: () => player,
@@ -538,6 +543,7 @@ async function connectHub() {
   } catch (error) {
     if (error.name === 'NotFoundError') {
       logLine(dom.log, 'Aucun appareil sélectionné.', 'warn');
+      toast('Aucun piano sélectionné. Le hub clignote-t-il en blanc ? Voir le guide (bouton 📖).', 'info', 7000);
       return;
     }
     toast(error.message, 'error', 7000);
@@ -576,12 +582,23 @@ function wireUi() {
   dom.search.addEventListener('input', applyFilter);
   dom.refresh.addEventListener('click', loadLibrary);
 
+  dom.guide.addEventListener('click', () => reader.open('guide.md'));
   dom.openSettings.addEventListener('click', () => openDrawer(true));
   dom.closeSettings.addEventListener('click', () => openDrawer(false));
   dom.scrim.addEventListener('click', () => openDrawer(false));
 
   document.addEventListener('keydown', (event) => {
-    if (event.target.matches('input, textarea')) return;
+    // `event.target` n'est pas toujours un élément (document, fenêtre) :
+    // on teste prudemment avant d'appeler matches().
+    const target = event.target;
+    if (target instanceof Element && target.matches('input, textarea, select')) return;
+    // Le lecteur est modal : il gère lui-même Échap, et rien d'autre ne passe.
+    if (reader.isOpen) return;
+    if (event.key === '?') {
+      event.preventDefault();
+      reader.open('guide.md');
+      return;
+    }
     if (event.code === 'Space') {
       event.preventDefault();
       togglePlay();
@@ -624,7 +641,7 @@ function boot() {
   }
   // Accès depuis la console du navigateur dès le chargement : le lecteur s'y
   // ajoute plus tard, quand le contexte audio est créé.
-  window.jukebox = { hub, settings, driver: null, player: null };
+  window.jukebox = { hub, settings, geek, driver: null, player: null };
 
   geek.mount();
   bindThemeControls();
