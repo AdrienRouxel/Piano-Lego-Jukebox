@@ -465,6 +465,7 @@ quatre choses-là.
 | Connecté, les touches ne bougent pas | Puissance minimale trop basse | Monte-la à 45 dans ⚙︎ → Mouvement des touches, ou refais l'étape 5 |
 | Connecté, les touches ne bougent pas | Pilotage désactivé | ⚙︎ → Mouvement des touches → coche « Piloter le moteur du piano » |
 | Le moteur bourdonne sans tourner | Piles fatiguées, ou puissance trop basse | Change les piles ; regarde la tension dans ⚙︎ → Alimentation |
+| Ça claque fort et les touches ne bougent pas | L'arbre à cames tourne à l'envers et bute | ⚙︎ → Mouvement des touches → coche « Inverser le sens de rotation » |
 | Les touches sont en retard sur la musique | Latence Bluetooth | Augmente **Avance** jusqu'à 250 ms |
 | Le mouvement hoquette entre les notes | Sensibilité trop basse | Monte **Sensibilité**, ou baisse **Accent** |
 | La liaison tombe régulièrement | Distance, obstacles, ou piles faibles | Rapproche l'ordinateur ; la pastille *Tension basse* de ⚙︎ → Le hub te le dira |

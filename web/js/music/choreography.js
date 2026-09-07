@@ -20,14 +20,30 @@ const STEP = 0.02;
 /** Période nominale du pilote moteur (ms) — 25 Hz, la cadence du lien BLE. */
 const TICK_INTERVAL = 40;
 
+/**
+ * En dessous, la partition est muette et le piano doit l'être aussi : ni
+ * mouvement, ni accent. Une introduction commence souvent par des mesures
+ * vides, mais la grille de temps, elle, défile depuis la première seconde.
+ */
+const SILENCE = 0.05;
+
+/**
+ * Temps caractéristique d'extinction d'une note tenue (s). Ce n'est pas la durée
+ * du son, c'est la vitesse à laquelle il cesse d'entretenir le mouvement : plus
+ * il est court, plus le piano se tait entre deux attaques.
+ */
+const SUSTAIN_DECAY = 0.8;
+
 export const DEFAULT_SETTINGS = {
   enabled: true,
   minPower: 40, // en dessous, le moteur cale sous la charge de l'arbre à cames
-  maxPower: 90,
+  maxPower: 75, // au-delà, l'arbre à cames claque au lieu d'enfoncer les touches
   leadMs: 140, // le moteur doit partir un peu avant le son
   accent: 0.35,
   sensitivity: 0.65,
-  direction: 1,
+  // Sens de rotation de l'arbre à cames. Dans le mauvais sens le mécanisme
+  // bute : ça claque fort et les touches ne bougent pas. Voir le guide.
+  direction: -1,
   /** Rôle du second piano : 'off', 'mirror', 'split' ou 'call'. */
   duet: 'mirror',
   idleStop: true,
@@ -71,7 +87,18 @@ export function buildActivityCurve(midi, { from = 0, to = 127 } = {}) {
 
     const end = Math.min(size - 1, Math.round((note.time + note.duration) / STEP));
     const hold = note.isDrum ? 0 : weight * 0.22;
-    for (let i = index; i <= end; i += 1) sustain[i] += hold;
+    // Une note tenue s'éteint, elle ne tient pas un plateau : c'est ce que fait
+    // le son d'un piano. Sans cette décroissance, une pièce lente aux longues
+    // tenues — « Clair de lune » et ses notes de cinq secondes — entretient un
+    // fond permanent, et le modèle ne se tait jamais entre deux attaques.
+    if (hold > 0) {
+      const fade = Math.exp(-STEP / SUSTAIN_DECAY);
+      let level = hold;
+      for (let i = index; i <= end; i += 1) {
+        sustain[i] += level;
+        level *= fade;
+      }
+    }
   }
 
   // Décroissance exponentielle des attaques : ~260 ms de traîne.
@@ -243,7 +270,12 @@ export class MotionDriver extends EventTarget {
     // Démarrage progressif : l'arbre à cames part sans à-coup, et les premières
     // notes ne trouvent pas un moteur encore immobile. La rampe est lâchée dès
     // que le premier tick calcule une consigne, elle ne fait que l'amorcer.
-    if (this.settings.rampStart && this.settings.enabled && this.hub.connected) {
+    //
+    // Encore faut-il qu'il y ait quelque chose à amorcer : sur une introduction
+    // muette, la rampe monte seule à travers les puissances où le moteur ne
+    // tourne pas encore, et on l'entend vibrer dans un silence complet.
+    const attaque = this.curve.at(this.getTime() + this.settings.leadMs / 1000);
+    if (this.settings.rampStart && this.settings.enabled && this.hub.connected && attaque >= SILENCE) {
       this.hub.rampPower(0, this.settings.minPower * this.settings.direction, 400);
     }
 
@@ -295,8 +327,11 @@ export class MotionDriver extends EventTarget {
     let activity = this.curve.at(lookAhead);
 
     // Accent sur les temps : un coup de fouet court, plus marqué sur les temps forts.
+    // On interroge la grille à chaque tick — même dans le silence — pour que son
+    // index reste aligné, mais l'accent souligne la musique, il ne la remplace
+    // pas : sur une mesure vide, le piano battrait la mesure tout seul.
     const accent = this._accentAt(lookAhead);
-    activity = Math.min(1.5, activity + accent * this.settings.accent);
+    if (activity >= SILENCE) activity = Math.min(1.5, activity + accent * this.settings.accent);
 
     let power = this._toPower(activity);
     // Question/réponse : chacun son tour, y compris le premier.
@@ -335,7 +370,10 @@ export class MotionDriver extends EventTarget {
     let power = leaderPower;
     if (mode === 'split') {
       const curve = this.followerCurve ?? this.curve;
-      power = this._toPower(Math.min(1.5, curve.at(lookAhead) + accent * this.settings.accent));
+      const own = curve.at(lookAhead);
+      // Même règle que pour le pilote : pas d'accent là où sa moitié se tait.
+      const shaped = own >= SILENCE ? Math.min(1.5, own + accent * this.settings.accent) : own;
+      power = this._toPower(shaped);
     } else if (mode === 'call') {
       // Le second répond quand le premier se tait : c'est tout le principe.
       power = this._leaderTurn() ? 0 : leaderPower;
@@ -370,16 +408,19 @@ export class MotionDriver extends EventTarget {
 
   _toPower(activity) {
     const { minPower, maxPower, sensitivity, idleStop } = this.settings;
-    const threshold = 0.05;
 
-    if (activity < threshold) {
+    if (activity < SILENCE) {
       // Hystérésis : on ne coupe qu'après un vrai silence, sinon le moteur hoquette.
       if (!this._moving) return 0;
-      if (performance.now() - this._quietSince > 220) {
+      if (idleStop && performance.now() - this._quietSince > 220) {
         this._moving = false;
         return 0;
       }
-      return idleStop ? Math.round(minPower * 0.7) : minPower;
+      // Jamais de consigne intermédiaire : `minPower` est le seuil auquel l'arbre
+      // à cames se met à tourner, donc toute valeur en dessous laisse le moteur
+      // sous tension sans l'entraîner — il force, bourdonne et chauffe pour rien.
+      // Le sursis se joue au seuil, ou pas du tout.
+      return minPower;
     }
 
     this._quietSince = performance.now();

@@ -231,6 +231,32 @@ export class PianoHub extends EventTarget {
     }
   }
 
+  /**
+   * Attend que le hub ait annoncé son moteur.
+   *
+   * Les trames « Hub Attached I/O » arrivent spontanément *après* la connexion :
+   * lire `motorPort` juste après `connect()` conclurait toujours à son absence,
+   * moteur branché ou non.
+   *
+   * @param {number} [timeoutMs] délai au-delà duquel on tranche sur l'état courant
+   * @returns {Promise<boolean>} vrai si un moteur a été annoncé à temps
+   */
+  waitForMotor(timeoutMs = 1500) {
+    if (this.motorPort !== null) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const settle = (found) => {
+        clearTimeout(timer);
+        this.removeEventListener('device', onDevice);
+        resolve(found);
+      };
+      const onDevice = () => {
+        if (this.motorPort !== null) settle(true);
+      };
+      const timer = setTimeout(() => settle(this.motorPort !== null), timeoutMs);
+      this.addEventListener('device', onDevice);
+    });
+  }
+
   /** Partie commune à toutes les façons d'arriver jusqu'au hub. */
   async _attach() {
     this._userDisconnect = false;
@@ -691,12 +717,21 @@ export class PianoHub extends EventTarget {
    * finir en roue libre. L'arbre à cames s'arrête net.
    * @returns {Promise<string>} l'état renvoyé par le hub
    */
-  brake() {
+  async brake() {
     this._sequenceToken += 1;
     this.currentPower = 0;
     this._motorPending = null;
-    if (!this.connected || this.motorPort === null) return Promise.resolve('offline');
-    return this._sendWithFeedback(encodeMotorBrake(this.motorPort), this.motorPort);
+    if (!this.connected || this.motorPort === null) return 'offline';
+    const outcome = await this._sendWithFeedback(encodeMotorBrake(this.motorPort), this.motorPort);
+    // Le hub garde sa dernière consigne jusqu'à l'ordre suivant : une trame de
+    // frein perdue laisse donc le moteur tourner indéfiniment. Sans accusé de
+    // réception, on repasse par l'arrêt direct, qui lui se réémet si l'écriture
+    // échoue. Un arrêt ne doit jamais tenir à un seul message.
+    if (outcome === 'timeout') {
+      this._log('Frein sans accusé de réception : arrêt direct du moteur.', 'warn');
+      await this.stopMotor();
+    }
+    return outcome;
   }
 
   /**

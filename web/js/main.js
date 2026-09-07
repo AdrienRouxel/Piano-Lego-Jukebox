@@ -1496,8 +1496,10 @@ function wireSecondHub() {
     connectButton.hidden = connected;
     disconnectButton.hidden = !connected;
     driver?.attachFollower(connected ? secondHub : null);
-    if (connected && secondHub.motorPort === null) {
-      toast('Second piano connecté, mais aucun moteur détecté. Câble bien enfoncé ?', 'error', 7000);
+    if (connected) {
+      secondHub.waitForMotor().then((found) => {
+        if (!found) toast('Second piano connecté, mais aucun moteur détecté. Câble bien enfoncé ?', 'error', 7000);
+      });
     }
   });
 
@@ -1566,7 +1568,10 @@ const HAND_FAR = 6;
 /** Temps mort après un déclenchement. */
 const HAND_COOLDOWN = 4000;
 
-let handArmed = true;
+// Désarmé au départ : tant qu'on n'a pas *vu* la voie libre, on ne peut pas
+// parler de front descendant. Sinon un capteur obstrué en permanence — une
+// pièce du modèle juste devant — déclenche dès sa première mesure.
+let handArmed = false;
 let handLastFire = 0;
 
 function wireHandTrigger() {
@@ -2344,7 +2349,7 @@ async function connectHub() {
   try {
     await hub.connect();
     toast('Piano connecté.', 'success');
-    if (hub.motorPort === null) {
+    if (!(await hub.waitForMotor())) {
       toast('Aucun moteur détecté. Le hub est-il bien celui du piano, câbles branchés ?', 'error', 7000);
     }
   } catch (error) {
