@@ -9,6 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎹</text></svg>" />
   <link rel="stylesheet" href="remote.css" />
+  <link rel="stylesheet" href="score.css" />
 </head>
 <body>
   <header class="top">
@@ -22,6 +23,10 @@
     <p class="now-title" id="now-title">Le jukebox n’a pas encore démarré</p>
     <p class="now-artist" id="now-artist"></p>
     <div class="now-bar" aria-hidden="true"><span id="now-fill"></span></div>
+    <button class="now-score" id="score-open" type="button" hidden>
+      <span aria-hidden="true">🎼</span> Suivre la partition
+    </button>
+    <p class="now-score-hint" id="score-hint" hidden>Tourne ton téléphone&nbsp;: la partition s’ouvre toute seule.</p>
   </section>
 
   <div class="cheer-row">

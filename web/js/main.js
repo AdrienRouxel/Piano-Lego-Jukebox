@@ -7,7 +7,9 @@
  *          ▼
  *   Player (audio) ──► horloge commune ──► MotionDriver ──► PianoHub ──► moteur
  *          │                                    │
- *          └──────────► clavier « partition »   └──► clavier « modèle LEGO »
+ *          ├──────────► clavier « partition »   └──► clavier « modèle LEGO »
+ *          │
+ *          └──────────► mode partition : la portée, gravée et suivie
  */
 
 import { PianoHub } from './lego/hub.js';
@@ -22,6 +24,7 @@ import { Playlist } from './playlist.js';
 import { Stand } from './stand.js';
 import { RequestPipeline } from './requests.js';
 import { initConverter } from './converter.js';
+import { ScoreMode } from './score-mode.js';
 import {
   buildKeyboard,
   buildCamshaft,
@@ -88,6 +91,7 @@ const dom = {
 
   standPanel: el('stand'),
   standButton: el('btn-stand'),
+  scoreButton: el('btn-score'),
   standStatus: el('stand-status'),
   standUrl: el('stand-url'),
   standSub: el('stand-sub'),
@@ -160,6 +164,9 @@ const UI_DEFAULTS = {
   attractTop: true,
   audioProfile: 'salle',
   handTrigger: false,
+  // Le pupitre s'ouvre tout seul quand on couche un téléphone. Décochable
+  // pour qui pilote le jukebox depuis une tablette et n'en veut pas.
+  scoreAuto: true,
   ...HUB_TOOL_SETTINGS,
 };
 
@@ -178,6 +185,20 @@ const geek = new GeekMode({
   getPlayer: () => player,
   getDriver: () => driver,
   settings,
+});
+
+/**
+ * Le pupitre : la partition du morceau en cours, gravée et suivie.
+ * Ici, l'horloge est celle du lecteur — la synchronisation est exacte.
+ */
+const scoreMode = new ScoreMode({
+  clock: () => player?.currentTime ?? 0,
+  isPlaying: () => Boolean(player?.isPlaying),
+  onToggle: (open) => {
+    dom.scoreButton.setAttribute('aria-pressed', String(open));
+    // Le pupitre montre déjà les notes : l'écran d'appel n'a rien à ajouter.
+    if (open) hideAttract();
+  },
 });
 
 /** Ordre de lecture : enchaînement, aléatoire, répétition. */
@@ -530,6 +551,14 @@ function bindSettingsControls() {
   const playableToggle = el('set-playable');
   playableToggle.addEventListener('change', () => setPlayable(playableToggle.checked));
 
+  const scoreAuto = el('set-scoreAuto');
+  scoreAuto.checked = Boolean(settings.scoreAuto);
+  scoreAuto.addEventListener('change', () => {
+    settings.scoreAuto = scoreAuto.checked;
+    scoreMode.autoLandscape(settings.scoreAuto);
+    saveSettings();
+  });
+
   const showNames = el('set-showNames');
   showNames.checked = Boolean(settings.showNames);
   showNames.addEventListener('change', () => {
@@ -825,6 +854,11 @@ async function ensureAudio() {
   });
   player.addEventListener('play', () => publishNow(true));
   player.addEventListener('pause', () => publishNow(true));
+  player.addEventListener('loaded', (event) => {
+    const { track, midi } = event.detail;
+    scoreMode.setTrack({ title: track.title, artist: track.artist, midi });
+  });
+  player.addEventListener('unloaded', () => scoreMode.setTrack(null));
 
   dom.nowState.textContent = 'Chargement du piano…';
   const mode = await player.init((loaded, total) => {
@@ -1853,6 +1887,7 @@ function syncVenueControls() {
   el('set-keepAwake').checked = Boolean(settings.keepAwake);
   el('set-restMotor').checked = Boolean(settings.restMotor);
   el('set-showNames').checked = Boolean(settings.showNames);
+  el('set-scoreAuto').checked = Boolean(settings.scoreAuto);
   el('set-lock').checked = Boolean(settings.lock);
   el('set-lockCode').value = settings.lockCode ?? '';
   el('set-audioProfile').value = settings.audioProfile;
@@ -1968,8 +2003,9 @@ function watchAttract(now) {
     hideAttract();
     return;
   }
-  // Une scène en cours ou un panneau ouvert compte comme une présence.
-  if (warmup.active || reader.isOpen || !dom.drawer.hidden || !dom.unlock.hidden) {
+  // Une scène en cours ou un panneau ouvert compte comme une présence — le
+  // pupitre aussi : quelqu'un lit la partition, l'écran n'est pas oublié.
+  if (warmup.active || reader.isOpen || scoreMode.isOpen || !dom.drawer.hidden || !dom.unlock.hidden) {
     lastInteraction = now;
     hideAttract();
     return;
@@ -2011,8 +2047,13 @@ function applyLock(on) {
     return;
   }
   settings.lock = on;
+  // Verrouillée, la borne montre ce que l'opérateur a choisi de montrer : le
+  // pupitre ne s'ouvrira plus tout seul, et il n'y aurait plus ni bouton ni
+  // raccourci pour en sortir de l'autre côté.
+  scoreMode.autoLandscape(!on && Boolean(settings.scoreAuto));
   if (on) {
     document.documentElement.dataset.locked = '1';
+    scoreMode.close({ dismissed: false });
     openDrawer(false);
     toast(`Interface verrouillée. Ctrl+Maj+U pour reprendre la main (code ${settings.lockCode}).`, 'info', 9000);
   } else {
@@ -2382,6 +2423,7 @@ function wireUi() {
   dom.repeat.addEventListener('click', () => setRepeat(playlist.cycleRepeat()));
   dom.playable.addEventListener('click', () => setPlayable(!settings.playable));
   dom.standButton.addEventListener('click', () => applyKiosk(!settings.kiosk));
+  dom.scoreButton.addEventListener('click', () => scoreMode.toggle());
 
   // Sortir du plein écran (Échap, ou la barre du navigateur) sort du mode stand :
   // laisser la case cochée sans plein écran serait mensonger.
@@ -2474,7 +2516,8 @@ function wireUi() {
     }
     if (playable.enabled) return;
 
-    if (event.code === 'KeyG') toggleGeek();
+    if (event.code === 'KeyM') scoreMode.toggle();
+    else if (event.code === 'KeyG') toggleGeek();
     else if (event.code === 'KeyA') setShuffle(!settings.shuffle);
     else if (event.code === 'KeyR') setRepeat(playlist.cycleRepeat());
     else if (event.code === 'KeyS') applyKiosk(!settings.kiosk);
@@ -2562,6 +2605,7 @@ function boot() {
   wireTally();
   wireOperatorField();
   wireStand();
+  scoreMode.autoLandscape(Boolean(settings.scoreAuto));
   wireHubTools({
     hub,
     toast,

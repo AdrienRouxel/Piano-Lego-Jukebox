@@ -131,6 +131,29 @@ button, input { font: inherit; color: inherit; }
   transition: width .4s linear;
 }
 
+/* Accès au mode partition. Le bouton n'apparaît que si le morceau en cours
+   a une partition à montrer — un extrait converti à l'oreille n'en a pas. */
+.now-score {
+  margin-top: 14px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff0d;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.now-score:active { background: #ffffff1a; }
+
+.now-score-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  text-align: center;
+}
+
 /* ---------------------------------------------------------------- */
 /* File d'attente                                                    */
 /* ---------------------------------------------------------------- */

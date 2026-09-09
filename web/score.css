@@ -1,0 +1,266 @@
+/* ------------------------------------------------------------------
+   Mode partition — feuille commune au jukebox et à la télécommande.
+
+   Les deux pages n'ont ni la même charte ni la même feuille de style ;
+   celle-ci s'ajoute à l'une comme à l'autre et ne suppose rien d'elles.
+   Les quelques variables reprises ailleurs (`--accent`, `--blue`) sont
+   toutes données avec un repli.
+
+   Le pupitre, lui, ne suit pas le thème : une partition se lit sur du
+   papier. Le fond clair est un choix, pas un oubli — c'est ce qui la rend
+   lisible d'un mètre, et ce qui la distingue au premier coup d'œil du
+   reste de l'interface.
+   ------------------------------------------------------------------ */
+
+.score-mode {
+  --score-paper: #f7f2e7;
+  --score-paper-2: #efe8da;
+  --score-ink: #221d18;
+  --score-ink-soft: #6c6155;
+  --score-accent: var(--accent, var(--blue, #c8802a));
+  --score-bar: #17130f;
+
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  background: var(--score-bar);
+  color: #f4ede3;
+  font-family: var(--sans, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  /* Une encoche de téléphone tombe pile sur la barre du haut en paysage. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Pendant que le pupitre est ouvert, rien ne défile derrière lui. */
+body[data-score="1"] { overflow: hidden; }
+
+/* ---------------------------------------------------------------- */
+/* La barre du haut                                                 */
+/* ---------------------------------------------------------------- */
+
+.score-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 12px;
+  border-bottom: 1px solid #ffffff14;
+  flex: none;
+}
+
+.score-id {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: 1;
+}
+
+.score-title {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.score-artist {
+  font-size: 13px;
+  color: #ffffff8c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.score-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+.score-pages {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff8c;
+}
+
+.score-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #ffffff26;
+  border-radius: 999px;
+  background: #ffffff0f;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.score-close:hover { background: #ffffff1f; }
+
+/* Calage de la partition : seule la télécommande en a besoin, faute
+   d'horloge commune avec le jukebox. */
+.score-nudge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.score-nudge-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #ffffff26;
+  border-radius: 8px;
+  background: #ffffff0f;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.score-nudge-value {
+  min-width: 4.2em;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff8c;
+}
+
+/* ---------------------------------------------------------------- */
+/* Le papier                                                        */
+/* ---------------------------------------------------------------- */
+
+.score-sheet {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 8px;
+  border-radius: 10px;
+  background: linear-gradient(150deg, var(--score-paper), var(--score-paper-2));
+  box-shadow: 0 10px 30px -18px #000, inset 0 0 0 1px #00000014;
+  overflow: hidden;
+}
+
+.score-page {
+  position: absolute;
+  inset: 8px 10px;
+  width: calc(100% - 20px);
+  height: calc(100% - 16px);
+}
+
+.score-note {
+  position: absolute;
+  inset: auto 0 0;
+  margin: 0;
+  padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 14px;
+  color: #ffffffb3;
+}
+/* Sans partition, le papier n'a pas lieu d'être. */
+.score-mode[data-empty="1"] .score-sheet { display: none; }
+.score-mode[data-empty="1"] .score-note {
+  inset: 0;
+  display: grid;
+  place-content: center;
+  max-width: 26em;
+  margin: auto;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------- */
+/* La gravure                                                       */
+/* ---------------------------------------------------------------- */
+
+.score-staff-line,
+.score-ledger {
+  stroke: var(--score-ink);
+  stroke-width: .9;
+  opacity: .78;
+}
+
+.score-barline {
+  stroke: var(--score-ink);
+  stroke-width: 1.3;
+  opacity: .85;
+}
+
+.score-stem {
+  stroke: var(--score-ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.score-brace,
+.score-clef,
+.score-clef-dot,
+.score-flag {
+  fill: var(--score-ink);
+}
+
+.score-head {
+  fill: var(--score-ink);
+  transition: fill .08s linear;
+}
+.score-head.hollow {
+  fill: none;
+  stroke: var(--score-ink);
+  stroke-width: 2.1;
+}
+
+/* Une note qui sonne s'allume, et grossit d'un souffle : c'est ce qui
+   rend le suivi lisible sans avoir à chercher le curseur. */
+.score-head[data-on="1"] {
+  fill: var(--score-accent);
+  stroke: var(--score-accent);
+  filter: drop-shadow(0 0 3px var(--score-accent));
+}
+
+.score-accidental,
+.score-key-accidental {
+  fill: var(--score-ink);
+  font-size: 15px;
+  font-family: system-ui, -apple-system, "Segoe UI Symbol", "Noto Sans Symbols 2", sans-serif;
+  text-anchor: middle;
+}
+
+.score-cursor {
+  stroke: var(--score-accent);
+  stroke-width: 1.6;
+  opacity: .85;
+  filter: drop-shadow(0 0 4px var(--score-accent));
+}
+
+/* ---------------------------------------------------------------- */
+/* Le tourne-page                                                   */
+/* ---------------------------------------------------------------- */
+
+@keyframes score-turn-in {
+  from { opacity: 0; transform: translateX(7%); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes score-turn-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(-7%); }
+}
+
+.score-page[data-turn="in"] { animation: score-turn-in .34s ease-out both; }
+.score-page[data-turn="out"] { animation: score-turn-out .34s ease-in both; }
+/* Un retour en arrière — une recherche manuelle — glisse dans l'autre sens. */
+.score-page[data-turn="back"] { animation: score-turn-out .34s ease-out reverse both; }
+.score-page[data-turn="back-out"] { animation: score-turn-in .34s ease-in reverse both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .score-page[data-turn] { animation: none; }
+}
+
+/* ---------------------------------------------------------------- */
+/* Téléphone couché : chaque millimètre compte                      */
+/* ---------------------------------------------------------------- */
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .score-bar { padding: 4px 10px; gap: 10px; }
+  .score-title { font-size: 13px; }
+  .score-artist { display: none; }
+  .score-sheet { margin: 5px; border-radius: 8px; }
+  .score-close { width: 30px; height: 30px; }
+}

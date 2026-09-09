@@ -211,6 +211,9 @@ Pendant la lecture :
 - **La pastille d'état** — gris : déconnecté ; orange clignotant : connexion ou
   reconnexion en cours ; vert : connecté, avec le nom du hub et la batterie.
 - **« Connecter le piano »** — ouvre le sélecteur Bluetooth.
+- **🎼** — ouvre le **mode partition** : le morceau en cours, gravé sur deux
+  portées, avec les notes qui s'allument au moment où elles sonnent et la page
+  qui se tourne toute seule. Raccourci `M`, `Échap` pour sortir.
 - **📖** — ouvre ce guide, sans quitter la page. Le panneau contient aussi les
   deux autres documents du projet : *Comment ça marche* et *Micrologiciel*. Un
   sommaire à gauche permet de sauter directement à une section.
@@ -240,6 +243,37 @@ Pendant la lecture :
   brancher quoi que ce soit. La barre en dessous montre la puissance envoyée.
 - **Le transport** — précédent / lecture / suivant, la barre de position (on
   peut cliquer dedans pour se déplacer) et le volume.
+
+### Le mode partition
+
+Le bouton **🎼** de la barre du haut — ou la touche `M` — remplace l'écran par
+un **pupitre** : le morceau en cours, gravé sur deux portées reliées par une
+accolade, avec sa clé de sol, sa clé de fa et son armure. Les notes s'allument à
+l'instant précis où elles sonnent, un trait vertical suit la mesure, et **la
+page se tourne toute seule** quand la musique arrive au bout.
+
+Sur un **téléphone**, il n'y a rien à demander : ouvre le jukebox, lance un
+morceau, puis **couche l'appareil**. Le pupitre s'ouvre de lui-même, et se
+referme quand tu redresses le téléphone. Le réglage *« Ouvrir la partition
+quand on couche le téléphone »*, dans le tiroir, permet de s'en passer — utile
+si tu pilotes le stand depuis une tablette.
+
+La télécommande des visiteurs sait faire la même chose : voir *[Tenir un
+stand](#tenir-un-stand)*.
+
+Quelques précisions honnêtes sur ce qui est gravé :
+
+- la partition est **déduite du fichier MIDI**, pas d'une édition originale.
+  Elle donne les bonnes notes au bon moment, mais ne remplace pas une partition
+  publiée : pas de ligatures, pas de silences écrits, pas de nuances ;
+- **l'armure est devinée** — la plupart des fichiers MIDI n'indiquent pas leur
+  tonalité. Le jukebox essaie les quinze armures et garde celle qui demande le
+  moins d'altérations. Il se trompe rarement, et jamais gravement : les notes
+  restent justes, seule leur orthographe peut varier ;
+- **la mesure vient du fichier**. Un MIDI qui ne déclare pas sa métrique est lu
+  en 4/4, et les barres d'une valse tomberont alors au mauvais endroit ;
+- un morceau **sans partition** — un extrait de plateforme joué d'oreille — n'a
+  rien à graver : le pupitre le dit, et ne montre rien plutôt que d'inventer.
 
 ### La bibliothèque
 
@@ -271,6 +305,7 @@ c'est à la main qu'ils s'enlèvent.
 | `A` | Lecture aléatoire |
 | `R` | Répétition : aucune, la liste, le morceau |
 | `P` | Rend le clavier de l'écran jouable |
+| `M` | Mode partition : la portée, suivie en temps réel |
 | `S` | Mode borne : plein écran et lecture en continu |
 | `G` | Ouvre ou ferme le Geek mode |
 | `?` | Ouvre ce guide |
@@ -382,6 +417,13 @@ démonstration à deux personnes autour d'un bureau, tout ce qui précède suffi
   navigateur a perdu le son : recharge la page.
 - Un visiteur veut **essayer** ? Touche `P` : les touches de l'écran deviennent
   jouables, et le modèle bouge en même temps.
+- Un visiteur qui **couche son téléphone** voit apparaître la partition du
+  morceau en cours, qui se suit toute seule : c'est le même pupitre que sur
+  l'écran du stand, et il n'y a rien à lui expliquer. La télécommande porte
+  aussi un bouton *Suivre la partition*, pour ceux qui tiennent leur téléphone
+  droit. Le téléphone n'a pas l'horloge du jukebox : la partition est calée sur
+  ce que le serveur relaie, et deux petits boutons `−` `+` en haut de l'écran
+  rattrapent le retard du réseau si l'on voit un décalage.
 - Les **prénoms** affichés à l'écran sont saisis par les visiteurs. Ils sont
   filtrés, mais si personne ne surveille l'écran, décoche *Afficher le prénom*.
 - Surveille les **piles** : la pastille en haut à droite passe au rouge sous

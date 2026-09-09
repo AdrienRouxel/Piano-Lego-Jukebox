@@ -27,6 +27,7 @@ npm start          # puis ouvrir http://localhost:4173 dans Chrome ou Edge
 - [Démarrage](#démarrage)
 - [Ajouter de la musique : MIDI ou MP3 ?](#ajouter-de-la-musique--midi-ou-mp3-)
 - [Comment ça marche](#comment-ça-marche)
+- [Le mode partition](#le-mode-partition)
 - [Thèmes](#thèmes)
 - [Geek mode](#geek-mode)
 - [Journée portes ouvertes](#journée-portes-ouvertes)
@@ -300,8 +301,10 @@ scripts/
   fetch-samples.mjs             Copie les échantillons de piano en local
   test-protocol.mjs             Vérifie la couche protocole contre la spécification (npm test)
   test-markdown.mjs             Vérifie le convertisseur Markdown (npm test)
+  test-score.mjs                Vérifie la gravure de partition et son suivi (npm test)
 web/
   index.html  styles.css        L'interface (styles.css porte les thèmes)
+  score.css                     Le mode partition — feuille commune au jukebox et à la télécommande
   geek.html                     Page du second écran : la télémétrie seule, plein écran
   assets/
     brand/                      Logo Epitech et polices de la charte (Anton, IBM Plex Sans)
@@ -309,6 +312,7 @@ web/
     main.js                     Assemblage : bibliothèque, lecteur, hub, interface
     ui.js                       Claviers, pochettes, notifications, journal
     hubtools.js                 Panneaux matériel : infos, essais, capteur, console LWP3
+    score-mode.js               Le pupitre plein écran : rotation du téléphone, tourne-page
     reader.js                   Lecteur de documentation intégré (bouton 📖)
     markdown.js                 Convertisseur Markdown → HTML, écrit à la main
     converter.js                Panneau du convertisseur MP3 : extrait, conversion, rangement
@@ -394,6 +398,82 @@ arrière-plan — mais garde quand même la page visible pour un rendu impeccabl
   (les phases des leviers sont réparties selon l'angle d'or, comme sur le modèle).
   C'est un aperçu fidèle de ce que fait le piano à cet instant, même sans hub
   connecté.
+
+---
+
+## Le mode partition
+
+Le bouton **🎼** de la barre du haut — ou la touche `M` — remplace l'écran par un
+**pupitre** : le morceau en cours, gravé sur deux portées reliées par une
+accolade, les notes qui s'allument à l'instant où elles sonnent, un curseur qui
+suit la mesure, et la page qui se tourne toute seule.
+
+Sur un **téléphone**, il n'y a rien à demander : lance un morceau et couche
+l'appareil. Le pupitre s'ouvre, et se referme quand tu redresses le téléphone.
+La **télécommande des visiteurs** en fait autant — un visiteur qui tourne son
+téléphone pendant qu'un morceau joue voit la partition défiler.
+
+### Ce qu'il a fallu écrire
+
+Il n'existe pas de moteur de gravure sans dépendance ni étape de build : celui-ci
+tient dans `web/js/music/score.js`, et fait ce dont ce projet a besoin, pas
+davantage.
+
+- **Les hauteurs.** Un numéro MIDI ne dit pas comment s'écrit une note : la
+  touche 66 est un *fa dièse* en ré majeur, un *sol bémol* en ré bémol. Comme
+  presque aucun fichier MIDI ne déclare sa tonalité, le jukebox essaie les
+  quinze armures et garde celle qui demande le moins d'altérations
+  accidentelles, avec une préférence pour la plus simple à égalité. Sur la
+  bibliothèque livrée, il tombe juste : *Le Printemps* de Vivaldi en mi majeur,
+  la *Gnossienne no 1* de Satie en fa mineur.
+- **Le temps.** `midi.js` donne l'instant de chaque noire, tempo variable
+  compris ; les mesures s'en déduisent, y compris pour un 6/8 — trois noires, et
+  non six.
+- **L'espacement.** C'est là que se joue la lisibilité. Espacer les notes au
+  prorata du temps semble naturel, et donne des paquets illisibles dès qu'une
+  mesure mêle une blanche et douze doubles croches. La gravure procède
+  autrement, et depuis des siècles : chaque attaque reçoit sa colonne, et
+  l'espace qui la suit croît en racine de sa durée — un rapport de trois entre
+  une ronde et une double croche, là où le temps les sépare d'un facteur seize.
+- **Le suivi.** Chaque mesure garde sa table `[instant, abscisse]`. Le curseur
+  y interpole, et tombe donc exactement sur la tête de chaque note à la seconde
+  où elle sonne. C'est vérifié par `npm test`, note par note.
+- **Les clés.** Les caractères musicaux d'Unicode manquent à trop de téléphones
+  pour qu'on leur confie la première chose que le lecteur regarde. Les clés et
+  l'accolade sont donc dessinées — décrites par la ligne que suivrait une plume,
+  quelques points et l'épaisseur du trait à chacun, qu'une fonction épaissit en
+  contour. L'accolade s'étire ainsi avec la hauteur du système, ce qu'un tracé
+  figé ne saurait pas faire.
+
+### Deux horloges
+
+Le jukebox et le téléphone d'un visiteur ne lisent pas l'heure au même endroit,
+et le mode partition sert les deux :
+
+```
+jukebox    ──► player.currentTime            horloge exacte, au sample près
+téléphone  ──► SSE (position toutes les 2 s) ──► prolongée par l'horloge locale
+```
+
+Sur la télécommande, la dernière position reçue est prolongée par l'horloge du
+téléphone et recalée à chaque trame, en douceur quand l'écart est minime — un
+curseur qui sursaute est plus gênant qu'un curseur légèrement en avance. Reste
+le retard du réseau, lui constant : il est anticipé de deux dixièmes par défaut,
+et deux boutons `−` `+` laissent affiner à l'oreille. C'est plus honnête qu'un
+calcul qui prétendrait mesurer une latence qu'on ne mesure pas.
+
+Le module n'est téléchargé qu'au moment où il sert : sur un forfait mobile, une
+page qui charge un graveur de partitions pour ne rien afficher serait un mauvais
+calcul.
+
+### Ce que ce n'est pas
+
+Une partition **déduite d'un fichier MIDI**, pas une édition. Les notes sont
+justes et tombent au bon moment ; il n'y a ni ligatures, ni silences écrits, ni
+nuances, ni doigtés. Un MIDI qui ne déclare pas sa métrique est lu en 4/4, et
+les barres d'une valse tomberont alors au mauvais endroit. Un morceau sans
+partition — un extrait de plateforme joué d'oreille — n'a rien à graver : le
+pupitre le dit, plutôt que d'inventer.
 
 ---
 
@@ -525,6 +605,10 @@ l'interface deviennent alors lisibles par le réseau.
 La page du jukebox, elle, reste sur l'ordinateur relié au piano : c'est le seul
 poste qui parle en Bluetooth au modèle. Le Web Bluetooth exigeant un contexte
 sécurisé, ce poste doit être ouvert sur `localhost` ou en `https://`.
+
+La télécommande sait aussi devenir un **pupitre** : un visiteur qui couche son
+téléphone pendant qu'un morceau joue voit la partition s'ouvrir et défiler —
+voir [Le mode partition](#le-mode-partition).
 
 ### Le code QR, écrit à la main
 

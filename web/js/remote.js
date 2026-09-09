@@ -42,6 +42,8 @@ const dom = {
   chips: el('chips'),
   tracks: el('tracks'),
   empty: el('empty'),
+  scoreOpen: el('score-open'),
+  scoreHint: el('score-hint'),
   toasts: el('toasts'),
 };
 
@@ -121,6 +123,9 @@ async function loadLibrary() {
     categories = (data.categories ?? []).filter((entry) => entry.count > 0);
     renderChips();
     renderTracks();
+    // La première trame du serveur arrive souvent avant la bibliothèque :
+    // c'est seulement maintenant qu'on sait si le morceau a une partition.
+    refreshScore(lastNow);
   } catch (error) {
     dom.empty.hidden = false;
     dom.empty.textContent = `La bibliothèque est injoignable (${error.message}). Le jukebox est-il allumé ?`;
@@ -259,9 +264,19 @@ function showRest(seconds) {
   restTimer ??= setInterval(tickRest, 1000);
 }
 
+/** Dernier « en ce moment » reçu du serveur. */
+let lastNow = null;
+
 /** Applique un instantané reçu du serveur : ce qui joue, et la file. */
 function apply(state) {
   const now = state.now;
+
+  // Le pupitre se recale avant tout le reste : une pause de service sort de
+  // cette fonction plus bas, et un curseur qu'on aurait oublié de recaler
+  // continuerait d'avancer sur un piano muet.
+  lastNow = now ?? null;
+  resync(now);
+  refreshScore(now);
 
   // Une pause de service prend le pas sur le morceau : c'est la seule chose
   // qu'un visiteur devant un piano muet a besoin de lire.
@@ -456,6 +471,154 @@ function listen() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Mode partition                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Le pupitre, vu du téléphone.
+ *
+ * Ici, aucune horloge commune avec le jukebox : le serveur relaie une position
+ * toutes les deux secondes, et le voyage — Wi-Fi du stand, 5G du visiteur,
+ * serveur au milieu — prend le temps qu'il prend. On prolonge donc la dernière
+ * position reçue avec l'horloge du téléphone, et on se recale à chaque trame :
+ * entre deux, deux quartz ne dérivent que de quelques millisecondes.
+ *
+ * Reste le retard du réseau, lui constant : la position reçue décrit toujours
+ * un passé proche. On l'anticipe par défaut d'un dixième et demi de seconde,
+ * et les deux boutons de la barre laissent affiner à l'oreille — c'est plus
+ * honnête qu'un calcul qui prétendrait mesurer une latence qu'on ne mesure pas.
+ */
+const NETWORK_LEAD = 0.2;
+
+/** Un téléphone couché : les mêmes conditions que dans `score-mode.js`. */
+const PHONE_LANDSCAPE = matchMedia('(orientation: landscape) and (max-height: 560px) and (pointer: coarse)');
+
+/** Dernière position connue, et l'instant local où on l'a apprise. */
+const sync = { position: 0, at: performance.now(), playing: false };
+/** Partition gravée, et le morceau dont elle vient. */
+let scoreMode = null;
+let scoreModeReady = null;
+let scoreTrackId = null;
+let scoreLoading = false;
+
+/** Où en est la musique, maintenant, selon ce que le téléphone peut en savoir. */
+function clock() {
+  if (!sync.playing) return sync.position;
+  return sync.position + (performance.now() - sync.at) / 1000;
+}
+
+/** Recale l'horloge sur une trame du serveur, sans à-coup quand c'est possible. */
+function resync(now) {
+  const playing = now?.state === 'playing';
+  const position = Number(now?.position) || 0;
+  const gap = position - clock();
+  // Un écart minime se résorbe en douceur : un curseur qui sursaute à chaque
+  // trame est plus gênant qu'un curseur légèrement en avance.
+  sync.position = Math.abs(gap) < 0.4 ? clock() + gap * 0.25 : position;
+  sync.at = performance.now();
+  sync.playing = playing;
+}
+
+/** La piste de la bibliothèque qui correspond à ce qui joue, si on la connaît. */
+function currentTrack(now) {
+  return now?.id ? library.find((track) => track.id === now.id) ?? null : null;
+}
+
+/**
+ * Met le bouton et la partition en accord avec le morceau en cours.
+ * Le module n'est téléchargé qu'au moment où il sert : sur un forfait mobile,
+ * une page qui charge un graveur de partitions pour ne rien afficher serait
+ * un mauvais calcul.
+ */
+async function refreshScore(now) {
+  const track = currentTrack(now);
+  const offered = Boolean(track?.midiUrl);
+  dom.scoreOpen.hidden = !offered;
+  dom.scoreHint.hidden = !offered;
+
+  if (!scoreMode) {
+    // Téléphone déjà couché quand la musique démarre : la rotation n'aura
+    // pas lieu, c'est donc ici qu'il faut y penser.
+    if (offered && PHONE_LANDSCAPE.matches) {
+      await ensureScoreMode();
+      await refreshScore(now);
+    }
+    return;
+  }
+  if (!offered) {
+    scoreMode.setTrack(track ? { title: track.title, artist: track.artist, midi: null } : null);
+    scoreTrackId = null;
+    return;
+  }
+  if (track.id === scoreTrackId || scoreLoading) return;
+
+  scoreLoading = true;
+  scoreMode.setTrack({ title: track.title, artist: track.artist, midi: null, loading: true });
+  try {
+    const { parseMidi } = await import('./music/midi.js');
+    const response = await fetch(track.midiUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const midi = parseMidi(await response.arrayBuffer());
+    scoreTrackId = track.id;
+    scoreMode.setTrack({ title: track.title, artist: track.artist, midi });
+  } catch {
+    scoreTrackId = null;
+    scoreMode.setTrack({ title: track.title, artist: track.artist, midi: null });
+  } finally {
+    scoreLoading = false;
+  }
+}
+
+/**
+ * Charge le pupitre au premier besoin, et le branche sur l'orientation.
+ *
+ * La promesse est retenue, pas seulement son résultat : une trame du serveur
+ * et un doigt sur le bouton peuvent se croiser pendant le téléchargement du
+ * module, et deux pupitres se retrouveraient alors dans la page.
+ */
+function ensureScoreMode() {
+  scoreModeReady ??= (async () => {
+    const { ScoreMode } = await import('./score-mode.js');
+    scoreMode = new ScoreMode({
+      clock,
+      isPlaying: () => sync.playing,
+      // Seule la télécommande a besoin du réglage : le jukebox, lui, lit
+      // l'heure exacte dans son propre lecteur.
+      nudge: true,
+    });
+    scoreMode.offset = NETWORK_LEAD;
+    scoreMode.autoLandscape(true);
+    return scoreMode;
+  })();
+  return scoreModeReady;
+}
+
+async function openScore() {
+  const mode = await ensureScoreMode();
+  await refreshScore(lastNow);
+  // `openByHand` et non `toggle` : entre le doigt et la gravure, le pupitre a
+  // pu s'ouvrir de lui-même — un téléphone déjà couché — et il serait absurde
+  // que le bouton « Suivre la partition » le referme.
+  mode.openByHand();
+}
+
+/**
+ * Tant que le module n'est pas chargé, c'est cette écoute-ci qui guette la
+ * rotation du téléphone — sans quoi il faudrait le télécharger d'avance,
+ * pour rien, sur chacun des téléphones qui ouvrent la télécommande.
+ */
+function watchRotation() {
+  PHONE_LANDSCAPE.addEventListener('change', async () => {
+    if (!PHONE_LANDSCAPE.matches || scoreMode || !currentTrack(lastNow)?.midiUrl) return;
+    const mode = await ensureScoreMode();
+    await refreshScore(lastNow);
+    // La partition est prête, et le téléphone toujours couché : on ouvre.
+    // Une fois le module en place, c'est lui qui suivra les rotations.
+    if (PHONE_LANDSCAPE.matches && !mode.isOpen) mode.open({ byRotation: true });
+  });
+}
+
+/* ------------------------------------------------------------------ */
 
 if (!standCode) {
   lockOut('Ouvre cette page en scannant le code QR affiché près du piano : c’est lui qui porte le code du stand.');
@@ -464,6 +627,8 @@ if (!standCode) {
 dom.search.addEventListener('input', renderTracks);
 dom.cheer.addEventListener('click', cheer);
 dom.linkForm.addEventListener('submit', sendLink);
+dom.scoreOpen.addEventListener('click', openScore);
 restoreName();
 loadLibrary();
 listen();
+watchRotation();
