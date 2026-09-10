@@ -96,8 +96,10 @@ Puis ouvre **http://localhost:4173**.
 > « contexte sécurisé » : `https://` ou `localhost`. Un fichier ouvert en
 > `file://`, ou l'adresse IP de la machine, ne fonctionnera pas.
 
-Au tout premier lancement, si le dossier `tracks/` est vide, une bibliothèque de
-départ y est écrite : 25 morceaux répartis en quatre catégories, générés
+Un clone du dépôt arrive avec sa bibliothèque déjà remplie — voir plus bas les
+[catégories](#les-catégories). Si le dossier `tracks/` venait à être vide (par
+exemple après l'avoir vidé), le tout premier lancement y réécrit une
+bibliothèque de départ : 25 morceaux répartis en quatre catégories, générés
 localement note à note — rien n'est téléchargé.
 
 ### Connecter le piano
@@ -132,12 +134,14 @@ ignoré.
 
 | Catégorie | Contenu |
 |---|---|
+| `Demandes/` | remplie automatiquement par les demandes des visiteurs (extraits officiels de 30 s + pochettes) — voir [Demander un morceau par un lien Spotify ou Apple Music](#demander-un-morceau-par-un-lien-spotify-ou-apple-music). **Non versionnée** : ce contenu reste local à chaque machine. |
 | `Classique/` | 14 pièces du domaine public, en arrangement simplifié |
+| `Piano/` | 21 incontournables du répertoire piano (classique, pop, cinéma, jeux vidéo) |
 | `Moderne/` | 10 pièces originales, dans les esthétiques actuelles |
-| `Gaming/` | vide — à remplir |
+| `Gaming/` | 24 thèmes de jeux vidéo |
 | `Réglage/` | la piste de calibration du moteur |
 
-L'ordre d'affichage de ces quatre catégories est fixé dans `server.mjs`
+L'ordre d'affichage de ces catégories est fixé dans `server.mjs`
 (`CATEGORY_ORDER`) ; toute autre catégorie vient ensuite, par ordre
 alphabétique. L'état ouvert/fermé de chacune est retenu d'une visite à l'autre.
 
