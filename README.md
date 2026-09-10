@@ -28,6 +28,7 @@ npm start          # puis ouvrir http://localhost:4173 dans Chrome ou Edge
 - [Ajouter de la musique : MIDI ou MP3 ?](#ajouter-de-la-musique--midi-ou-mp3-)
 - [Comment ça marche](#comment-ça-marche)
 - [Le mode partition](#le-mode-partition)
+- [Le piano en 3D](#le-piano-en-3d)
 - [Thèmes](#thèmes)
 - [Geek mode](#geek-mode)
 - [Journée portes ouvertes](#journée-portes-ouvertes)
@@ -399,6 +400,10 @@ arrière-plan — mais garde quand même la page visible pour un rendu impeccabl
   C'est un aperçu fidèle de ce que fait le piano à cet instant, même sans hub
   connecté.
 
+Le sélecteur **Touches / Piano 3D**, au-dessus du modèle LEGO, remplace ce
+second clavier par une reconstitution en 3D du piano assemblé — voir
+[Le piano en 3D](#le-piano-en-3d).
+
 ---
 
 ## Le mode partition
@@ -474,6 +479,30 @@ nuances, ni doigtés. Un MIDI qui ne déclare pas sa métrique est lu en 4/4, et
 les barres d'une valse tomberont alors au mauvais endroit. Un morceau sans
 partition — un extrait de plateforme joué d'oreille — n'a rien à graver : le
 pupitre le dit, plutôt que d'inventer.
+
+---
+
+## Le piano en 3D
+
+Le bouton **Vue 3D** du header — accessible aussi directement sur
+`/piano3d.html` — ouvre une reconstitution pédagogique du 21323 : 43 éléments
+sélectionnables (les 25 touches, châssis, arbre à cames, marteaux, moteur, hub,
+capteur, pédale, pieds, banquette…), qu'on peut faire tourner, zoomer, écarter
+en pièces éclatées et rejouer en animation d'assemblage. Cliquer une pièce
+ouvre sa fiche ; la liste permet aussi de la choisir au clavier.
+
+C'est une reconstitution procédurale, pas un modèle CAO officiel ni une
+restitution brique par brique des 3 662 éléments du set — l'éclatement sert à
+comprendre les rôles des composants, pas à suivre une séquence de montage.
+
+Sur l'accueil, le sélecteur **Touches / Piano 3D** remplace le clavier LEGO à
+25 touches par cette même vue intégrée, animée en direct pendant la lecture ;
+le choix est mémorisé dans le navigateur, et une seule scène 3D est chargée à
+la fois. La vue requiert **WebGL 2** ; Three.js est fourni localement, sans
+CDN ni connexion.
+
+Détails de la modélisation, de l'architecture et de la vérification :
+[docs/piano3d.md](docs/piano3d.md).
 
 ---
 
@@ -1107,6 +1136,9 @@ d'origine n'est pas restauré. À lire avant de se lancer.
   [pybricksdev](https://github.com/pybricks/pybricksdev), tous deux sous licence MIT.
 - **Échantillons de piano** — [Salamander Grand Piano](https://archive.org/details/SalamanderGrandPianoV3)
   d'Alexander Holm, licence Creative Commons BY 3.0, servi par le projet Tone.js.
+- **Vue 3D** — [Three.js](https://threejs.org/) 0.180.0, avec ses modules
+  OrbitControls et RoomEnvironment, sous licence MIT, embarqués dans
+  `web/vendor/three/` (aucune installation ni CDN nécessaire).
 - **Répertoire classique** — œuvres du domaine public (Bach, Mozart, Beethoven,
   Chopin, Satie, Joplin…), dont les données MIDI ont été saisies pour ce dépôt.
   Ce sont des arrangements simplifiés — mélodie et accompagnement sur une
