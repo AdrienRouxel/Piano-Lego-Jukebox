@@ -19,6 +19,7 @@
 
 import http from 'node:http';
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
@@ -396,10 +397,29 @@ function rateLimited(req, body) {
   return bucket.count > RATE_MAX;
 }
 
+/**
+ * Compare deux jetons en temps constant : une comparaison `===` classique
+ * s'arrête dès le premier octet différent, ce qui laisse fuir la longueur du
+ * préfixe correct dans le temps de réponse. Sur un jeton de pilotage exposé
+ * publiquement (stand relié à un domaine), c'est la porte qu'on ne veut pas
+ * laisser entrebâillée.
+ */
+function safeEqual(a, b) {
+  const bufA = Buffer.from(String(a), 'utf8');
+  const bufB = Buffer.from(String(b), 'utf8');
+  if (bufA.length !== bufB.length) {
+    // Comparaison factice, de même coût qu'une vraie : la longueur ne doit
+    // pas non plus se deviner par la durée de la réponse.
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 /** Le code du stand, tel que le téléphone l'a reçu par le code QR. */
 function hasStandCode(req, url, body) {
   const given = String(body?.code ?? url.searchParams.get('c') ?? '').trim().toUpperCase();
-  return given === STAND_CODE;
+  return safeEqual(given, STAND_CODE);
 }
 
 /**
@@ -409,7 +429,7 @@ function hasStandCode(req, url, body) {
  */
 function isOperator(req, body) {
   const given = String(body?.operator ?? req.headers['x-stand-operator'] ?? '');
-  if (given && given === STAND_OPERATOR) return true;
+  if (given && safeEqual(given, STAND_OPERATOR)) return true;
   if (PUBLIC_URL || req.headers['x-forwarded-for'] || req.headers['x-forwarded-host']) return false;
   const address = req.socket.remoteAddress ?? '';
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
