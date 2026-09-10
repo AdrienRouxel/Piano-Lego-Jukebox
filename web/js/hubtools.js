@@ -267,12 +267,12 @@ function wireSensorPanel({ hub, toast }) {
     if (detail.mode === SensorMode.COUNT) {
       value.textContent = String(detail.count);
       // Le compteur n'a pas de maximum : on remplit la barre par cycles de 100.
-      fill.style.width = `${(detail.count % 100)}%`;
+      fill.style.setProperty('--fill', ((detail.count % 100) / 100).toFixed(4));
       return;
     }
     value.textContent = String(detail.value);
     // 0 = touche enfoncée (drapeau collé au capteur), 10 = rien devant.
-    fill.style.width = `${Math.max(0, 100 - detail.value * 10)}%`;
+    fill.style.setProperty('--fill', (Math.max(0, 1 - detail.value / 10)).toFixed(4));
   });
 
   el('btn-sensor-combined').addEventListener('click', () => {

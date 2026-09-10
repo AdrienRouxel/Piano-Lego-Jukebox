@@ -2,31 +2,48 @@
    Télécommande des visiteurs — feuille de style à part.
 
    Cette page s'ouvre sur le téléphone d'un visiteur, en 5G, dans un hall où
-   deux cents personnes font la même chose : elle ne charge ni police, ni
-   image, ni la grande feuille de style du jukebox. Tout est ici, en quelques
-   Ko, et la page s'affiche avant que le visiteur ait relevé la tête.
+   deux cents personnes font la même chose : elle ne charge ni image, ni la
+   grande feuille de style du jukebox. Tout est ici, en quelques Ko, et la
+   page s'affiche avant que le visiteur ait relevé la tête.
 
-   Charte Epitech : bleu #013afb, fond très sombre, titres serrés.
+   C'est la même gravure que le jukebox, tenue dans une main : encre bleue
+   Epitech sur papier blanc, réglure à pas constant, repères carrés, et le
+   catalogue en index numéroté — jamais en cartes empilées. Le bleu plein
+   ne se pose que sur ce qui agit ou sur ce qui sonne.
    ------------------------------------------------------------------ */
 
-:root {
-  --bg: #07080f;
-  --bg-2: #0e1120;
-  --card: #141829;
-  --card-2: #1b2038;
-  --line: #262c47;
+/* Le titre est gravé dans la face de la charte. Elle est servie par le même
+   serveur que la page, et `swap` fait que rien n'attend : le visiteur lit
+   immédiatement en face système, et le titre s'encre quand Anton arrive. */
+@font-face {
+  font-family: "Anton";
+  src: url("assets/brand/fonts/Anton-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
 
-  --ink: #f2f4fb;
-  --ink-2: #a8b0cc;
-  --ink-3: #6f7796;
+:root {
+  /* Le papier, et le filet bleuté qui le règle. */
+  --paper: #ffffff;
+  --paper-2: #f2f5fd;
+  --line: #c5d0ee;
+  --line-soft: #dfe6f8;
+
+  /* L'encre : bleue de bout en bout, jamais un noir neutre. */
+  --ink: #0b1633;
+  --ink-2: #35406b;
+  --ink-3: #5a6591;
 
   --blue: #013afb;
-  --blue-hi: #3a63ff;
-  --green: #00ff97;
-  --pink: #ff1ef7;
-  --orange: #ff5f3a;
+  --blue-hi: #0130d0;
+  --green: #00714a;
+  --alert: #b3300c;
 
-  --radius: 16px;
+  /* L'interligne de la portée : l'unité dont tout espacement est un
+     multiple, pour que les blocs se posent sur les lignes. */
+  --stave: 8px;
+
+  --display: "Anton", Impact, "Arial Narrow Bold", sans-serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -40,396 +57,269 @@ body {
   font-size: 16px;
   line-height: 1.45;
   color: var(--ink);
+  /* La grille « blueprint » de la charte règle le papier au lieu de le
+     teinter : le fond reste blanc, le trait seul le structure. */
   background:
-    radial-gradient(900px 500px at 50% -12%, #0b1a52 0%, transparent 62%),
-    var(--bg);
+    linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0 / 32px 32px,
+    var(--paper);
+  background-attachment: fixed;
   min-height: 100vh;
   overscroll-behavior-y: contain;
 }
 
 button, input { font: inherit; color: inherit; }
 
+/* Les surfaces que le navigateur dessine ne sont pas laissées aux
+   réglages d'usine. */
+::selection { background: var(--blue); color: #ffffff; }
+:root { caret-color: var(--blue); accent-color: var(--blue); }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
 /* ---------------------------------------------------------------- */
-/* En-tête                                                           */
+/* En-tête : le titre porte la page, seul                            */
 /* ---------------------------------------------------------------- */
 
-.top { padding: calc(26px + env(safe-area-inset-top)) 0 6px; }
-
-.kicker {
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--blue-hi);
+.top {
+  padding: calc(26px + env(safe-area-inset-top)) 0 calc(var(--stave) * 2);
+  border-bottom: 1.5px solid var(--blue);
 }
 
 .top h1 {
   margin: 0;
-  font-size: clamp(28px, 8vw, 38px);
-  line-height: 1.05;
-  letter-spacing: -.02em;
+  font-family: var(--display);
+  font-size: clamp(34px, 10vw, 46px);
+  /* Anton n'a qu'une graisse et se lit en capitales : en français, ses
+     accents ont besoin d'air, sinon un É touche la ligne au-dessus. */
+  line-height: 1.06;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--blue);
 }
 
 .lede {
-  margin: 8px 0 0;
+  margin: calc(var(--stave) * 1) 0 0;
   color: var(--ink-2);
   font-size: 15px;
 }
 
 /* ---------------------------------------------------------------- */
-/* Ce qui joue                                                       */
+/* Ce qui joue : une page de titre miniature                         */
 /* ---------------------------------------------------------------- */
 
 .now {
-  margin: 20px 0 0;
-  padding: 16px 18px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: linear-gradient(160deg, var(--card-2), var(--card));
+  margin: calc(var(--stave) * 3) 0 0;
+  padding: 0 0 calc(var(--stave) * 2);
+  border-bottom: 1px solid var(--line);
 }
-
-.now-label {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  color: var(--green);
-}
-
-.now[data-state="paused"] .now-label { color: var(--ink-3); }
 
 .now-title {
   margin: 0;
-  font-size: 19px;
-  font-weight: 650;
-  line-height: 1.2;
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.14;
+  letter-spacing: 0;
+  color: var(--ink);
 }
 
+/* Le compositeur se range sous le titre, aligné à droite, là où une
+   partition gravée l'écrit. */
 .now-artist {
-  margin: 3px 0 0;
+  margin: calc(var(--stave) * 1) 0 0;
   color: var(--ink-2);
   font-size: 14px;
+  text-align: right;
 }
 .now-artist:empty { display: none; }
 
+/* La position dans le morceau : un filet qui se remplit, à ras de la
+   réglure. Elle avance par `transform` — animer une propriété de mise en
+   page fait recalculer le flux à chaque trame. */
 .now-bar {
-  margin-top: 14px;
-  height: 4px;
-  border-radius: 4px;
-  background: #ffffff14;
+  margin-top: calc(var(--stave) * 1);
+  height: 3px;
+  background: var(--line-soft);
   overflow: hidden;
 }
-
 .now-bar span {
   display: block;
   height: 100%;
-  width: 0;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--blue-hi), var(--green));
-  transition: width .4s linear;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--blue);
+  transition: transform .4s linear;
 }
 
 /* Accès au mode partition. Le bouton n'apparaît que si le morceau en cours
    a une partition à montrer — un extrait converti à l'oreille n'en a pas. */
 .now-score {
-  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: calc(var(--stave) * 2);
   width: 100%;
-  padding: 11px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #ffffff0d;
-  color: var(--ink);
-  font: inherit;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--blue);
+  border-radius: 0;
+  background: transparent;
+  color: var(--blue);
   font-weight: 600;
   cursor: pointer;
 }
-.now-score:active { background: #ffffff1a; }
+.now-score:active { background: var(--blue); color: #ffffff; }
 
 .now-score-hint {
-  margin: 8px 0 0;
+  margin: calc(var(--stave) * 1) 0 0;
   font-size: 13px;
   color: var(--ink-3);
   text-align: center;
 }
 
+/* Pause de service : le piano se tait volontairement, et le titre le dit
+   déjà en toutes lettres — il suffit de l'encrer. */
+.now[data-rest="1"] .now-title { color: var(--blue); }
+.now[data-rest="1"] .now-bar span { background: var(--line); }
+.now[data-state="paused"] .now-title { color: var(--ink-2); }
+
 /* ---------------------------------------------------------------- */
-/* File d'attente                                                    */
+/* Applaudir                                                         */
 /* ---------------------------------------------------------------- */
 
-.queue { margin-top: 22px; }
+.cheer-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: calc(var(--stave) * 2);
+}
 
-.queue h2, .picker h2 {
-  margin: 0 0 10px;
+.cheer {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  min-height: 52px;
+  padding: 12px 20px;
+  border: 1.5px solid var(--blue);
+  border-radius: 0;
+  background: transparent;
+  color: var(--blue);
+  font-weight: 650;
+  cursor: pointer;
+}
+.cheer:active { background: var(--blue); color: #ffffff; }
+.cheer-icon { display: inline-flex; }
+.cheer-count { font-variant-numeric: tabular-nums; }
+.cheer-hint { margin: 0; font-size: 13px; color: var(--ink-3); }
+
+/* Le retour d'un applaudissement : un seul mouvement, bref. */
+.cheer[data-pulse="1"] { animation: cheer-pop .28s cubic-bezier(.16, 1, .3, 1); }
+@keyframes cheer-pop {
+  from { transform: scale(.94); }
+  to { transform: scale(1); }
+}
+
+/* ---------------------------------------------------------------- */
+/* Les titres de section : gravés, fermés d'une double barre          */
+/* ---------------------------------------------------------------- */
+
+.queue h2, .picker h2, .link-box h2 {
+  margin: 0 0 calc(var(--stave) * 1);
+  padding-bottom: calc(var(--stave) * 1);
+  border-bottom: 3px double var(--blue);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--blue);
 }
 
-.count { color: var(--blue-hi); }
+.count { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- */
+/* La file : un index numéroté, pas une pile de cartes               */
+/* ---------------------------------------------------------------- */
+
+.queue { margin-top: calc(var(--stave) * 3); }
 
 .queue-list {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  gap: 8px;
 }
 
 .queue-list li {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  padding: 11px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
+  gap: 14px;
+  padding: calc(var(--stave) * 1) 0;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .queue-list .rank {
   flex: none;
-  width: 20px;
+  min-width: 22px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  color: var(--blue-hi);
+  color: var(--ink-3);
+  text-align: right;
 }
 
 .queue-list .label { min-width: 0; }
 .queue-list .label b { display: block; font-weight: 600; }
 .queue-list .label small { color: var(--ink-3); }
 
-/* Les demandes venues de ce téléphone-ci sont reconnaissables. */
-.queue-list li[data-mine="1"] { border-color: #013afb88; background: linear-gradient(180deg, #013afb1f, var(--card)); }
-.queue-list li[data-mine="1"] .rank { color: var(--green); }
-
-/* ---------------------------------------------------------------- */
-/* Choix du morceau                                                  */
-/* ---------------------------------------------------------------- */
-
-.picker { margin-top: 26px; }
-
-.search-row { position: sticky; top: 0; z-index: 2; padding: 10px 0; background: linear-gradient(180deg, var(--bg) 72%, transparent); }
-
-#search {
-  width: 100%;
-  padding: 13px 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
-  color: var(--ink);
-  font-size: 16px; /* en dessous de 16 px, iOS zoome tout seul sur le champ */
-}
-#search::placeholder { color: var(--ink-3); }
-#search:focus { outline: 2px solid var(--blue-hi); outline-offset: 1px; }
-
-.chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 2px 0 12px;
-  scrollbar-width: none;
-}
-.chips::-webkit-scrollbar { display: none; }
-
-.chip {
-  flex: none;
-  padding: 8px 15px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--ink-2);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.chip[aria-selected="true"] {
-  border-color: transparent;
+/* Les demandes venues de ce téléphone-ci se reconnaissent à leur rang
+   encré en plein : le repère d'une partition, pas un onglet de couleur
+   collé sur le bord. */
+.queue-list li[data-mine="1"] .rank {
   background: var(--blue);
-  color: #fff;
-}
-
-.tracks { display: grid; gap: 8px; }
-
-.track {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 13px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
-  text-align: left;
-  cursor: pointer;
-  transition: background .12s, border-color .12s, transform .12s;
-}
-.track:active { transform: scale(.985); }
-.track[data-queued="1"] { border-color: #00ff9755; background: linear-gradient(180deg, #00ff9714, var(--card)); }
-.track[disabled] { opacity: .55; cursor: default; }
-
-.track .body { flex: 1; min-width: 0; }
-.track .title { display: block; font-weight: 600; }
-.track .artist { display: block; font-size: 13px; color: var(--ink-3); }
-
-.track .go {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--blue);
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
-}
-.track[data-queued="1"] .go { background: var(--green); color: #04120c; }
-
-.empty { color: var(--ink-3); padding: 18px 2px; }
-
-/* ---------------------------------------------------------------- */
-/* Pied de page et notifications                                     */
-/* ---------------------------------------------------------------- */
-
-.foot {
-  margin-top: 34px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-  color: var(--ink-3);
-  font-size: 13px;
-}
-.foot strong { color: var(--ink-2); }
-.foot-small { font-size: 12px; }
-
-.toasts {
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(14px + env(safe-area-inset-bottom));
-  z-index: 10;
-  display: grid;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.toast {
-  padding: 13px 16px;
-  border-radius: 12px;
-  background: #1d2340f2;
-  border: 1px solid var(--line);
-  box-shadow: 0 16px 40px -18px #000;
-  font-size: 15px;
-}
-.toast.success { border-color: #00ff9766; background: #0d2a20f2; }
-.toast.error { border-color: #ff5f3a66; background: #2a1410f2; }
-
-@media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  color: #ffffff;
+  padding: 1px 6px;
+  text-align: center;
 }
 
 /* ---------------------------------------------------------------- */
-/* Applaudissements                                                  */
+/* Coller un lien                                                    */
 /* ---------------------------------------------------------------- */
 
-.cheer-row { margin-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.link-box { margin-top: calc(var(--stave) * 4); }
 
-.cheer {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 12px 20px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--card-2), var(--card));
-  font-weight: 650;
-  cursor: pointer;
-  transition: transform .12s, border-color .12s, background .2s;
-}
-.cheer:active { transform: scale(.96); }
-.cheer:disabled { opacity: .7; }
-/* Quand un applaudissement passe — le sien ou celui d'un autre visiteur. */
-.cheer[data-pulse="1"] {
-  border-color: var(--green);
-  background: linear-gradient(180deg, #00ff9722, var(--card));
-}
-.cheer-icon { font-size: 20px; line-height: 1; }
-.cheer-count { color: var(--green); font-variant-numeric: tabular-nums; }
-.cheer-count:empty { display: none; }
-
-.cheer-hint { margin: 0; flex: 1 1 180px; font-size: 12.5px; color: var(--ink-3); }
-
-/* ---------------------------------------------------------------- */
-/* Prénom, et page verrouillée                                       */
-/* ---------------------------------------------------------------- */
-
-.name-field { display: grid; gap: 6px; margin-bottom: 4px; }
-.name-field > span { font-size: 13px; color: var(--ink-2); }
-.name-field small { display: block; color: var(--ink-3); font-size: 11.5px; }
-.name-field input {
-  padding: 12px 15px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
-  color: var(--ink);
-  font-size: 16px;
-}
-.name-field input:focus { outline: 2px solid var(--blue-hi); outline-offset: 1px; }
-
-.locked {
-  margin: 22px 0 0;
-  padding: 15px 17px;
-  border: 1px solid #ff5f3a55;
-  border-radius: 12px;
-  background: #2a141033;
-  color: var(--ink-2);
-  font-size: 14px;
-}
-
-/* ---------------------------------------------------------------- */
-/* Envoi d'un lien de plateforme                                     */
-/* ---------------------------------------------------------------- */
-
-.link-box {
-  margin-top: 26px;
-  padding: 18px;
-  border: 1px solid #013afb66;
-  border-radius: var(--radius);
-  background: linear-gradient(160deg, #013afb1c, var(--card));
-}
-.link-box h2 { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); }
-.link-lede { margin: 0 0 14px; font-size: 13.5px; color: var(--ink-2); }
-.link-lede strong { color: var(--ink); }
+.link-lede { margin: 0 0 calc(var(--stave) * 2); font-size: 13.5px; color: var(--ink-2); }
+.link-lede strong { color: var(--ink); font-weight: 650; }
 
 .link-form { display: flex; gap: 8px; }
 .link-form input {
   flex: 1;
   min-width: 0;
-  padding: 13px 15px;
+  padding: 13px 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #0a0d1a;
+  border-radius: 0;
+  background: var(--paper);
   color: var(--ink);
-  font-size: 16px;
+  font-size: 16px; /* en dessous de 16 px, iOS zoome tout seul sur le champ */
 }
-.link-form input:focus { outline: 2px solid var(--blue-hi); outline-offset: 1px; }
+.link-form input::placeholder { color: var(--ink-3); }
+
+/* Un aplat plein : c'est une action. */
 .link-form button {
   flex: none;
-  padding: 13px 20px;
-  border: 0;
-  border-radius: 12px;
+  min-height: 52px;
+  padding: 12px 22px;
+  border: 1.5px solid var(--blue);
+  border-radius: 0;
   background: var(--blue);
-  color: #fff;
-  font-weight: 650;
+  color: #ffffff;
+  font-weight: 700;
   cursor: pointer;
 }
-.link-form button:disabled { opacity: .6; cursor: default; }
+.link-form button:disabled { opacity: .55; cursor: default; }
 
-.link-state { margin: 12px 0 0; font-size: 13.5px; color: var(--ink-2); }
-.link-state[data-kind="error"] { color: #ffb4a0; }
+.link-state { margin: calc(var(--stave) * 2) 0 0; font-size: 13.5px; color: var(--ink-2); }
+.link-state[data-kind="error"] { color: var(--alert); }
 .link-state[data-kind="success"] { color: var(--green); }
 /* Pendant la recherche de l'extrait, trois points qui respirent. */
 .link-state[data-kind="working"]::after {
@@ -440,13 +330,208 @@ button, input { font: inherit; color: inherit; }
 }
 @keyframes link-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
 
-/* Pause de service : le piano se tait volontairement, et le dit. */
-.now[data-rest="1"] {
-  border-color: #ffb45c66;
-  background: linear-gradient(160deg, #ffb45c1f, var(--card));
+/* ---------------------------------------------------------------- */
+/* Choisir un morceau                                                */
+/* ---------------------------------------------------------------- */
+
+.picker { margin-top: calc(var(--stave) * 4); }
+
+.name-field { display: block; margin-bottom: calc(var(--stave) * 2); }
+.name-field > span {
+  display: block;
+  margin-bottom: calc(var(--stave) * 1);
+  font-size: 14px;
+  color: var(--ink-2);
 }
-.now[data-rest="1"] .now-label::after { content: " · pause de service"; }
-.now[data-rest="1"] .now-bar span {
-  background: linear-gradient(90deg, #ffb45c, #ff5f3a);
-  transition: none;
+.name-field small { display: block; font-size: 12.5px; color: var(--ink-3); }
+.name-field input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 16px;
+}
+.name-field input::placeholder { color: var(--ink-3); }
+
+.search-row {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: calc(var(--stave) * 1) 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+
+#search {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 16px;
+}
+#search::placeholder { color: var(--ink-3); }
+
+/* Les catégories sont des repères carrés, pas des pastilles. */
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: calc(var(--stave) * 1) 0;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip[aria-selected="true"] {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+}
+
+/* --- Le catalogue : un index réglé --------------------------------- */
+/* Chaque œuvre tient sur sa ligne, numérotée, séparée par un filet. Une
+   pile de quarante cartes blanches est précisément l'arrangement que
+   cette gravure refuse. */
+
+.tracks { counter-reset: oeuvre; }
+
+.track {
+  counter-increment: oeuvre;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: calc(var(--stave) * 2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.track::before {
+  content: counter(oeuvre);
+  flex: none;
+  min-width: 22px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink-3);
+  text-align: right;
+}
+.track:active { background: var(--paper-2); }
+
+.track .body { flex: 1; min-width: 0; }
+.track .title { display: block; font-weight: 600; }
+.track .artist { display: block; font-size: 13px; color: var(--ink-3); }
+
+/* La marque d'action : un carré d'encre, jamais une pastille. */
+.track .go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1.5px solid var(--blue);
+  border-radius: 0;
+  color: var(--blue);
+}
+.track[data-queued="1"] .go {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+}
+.track[data-queued="1"] .title { color: var(--ink-2); }
+
+.empty {
+  margin: calc(var(--stave) * 3) 0;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- */
+/* Pied de page et avertissements                                    */
+/* ---------------------------------------------------------------- */
+
+.locked {
+  margin: calc(var(--stave) * 3) 0 0;
+  padding: calc(var(--stave) * 2);
+  border: 1.5px solid var(--blue);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.foot {
+  margin-top: calc(var(--stave) * 4);
+  padding-top: calc(var(--stave) * 2);
+  border-top: 3px double var(--blue);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.foot strong { color: var(--ink-2); }
+.foot-small { font-size: 12px; }
+
+/* ---------------------------------------------------------------- */
+/* Notifications                                                     */
+/* ---------------------------------------------------------------- */
+
+.toasts {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 40;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 13px 15px;
+  border: 1.5px solid var(--blue);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14.5px;
+  animation: toast-in .22s cubic-bezier(.16, 1, .3, 1);
+}
+.toast.error { border-color: var(--alert); color: var(--alert); }
+.toast.success { border-color: var(--green); color: var(--green); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* Deux mouvements dans toute l'application, et pas un de plus ; sur
+   demande, aucun. */
+@media (prefers-reduced-motion: reduce) {
+  .cheer[data-pulse="1"], .toast { animation: none; }
+  .now-bar span { transition: none; }
+}
+
+/* ---------------------------------------------------------------- */
+/* Le pupitre du visiteur                                            */
+/* ---------------------------------------------------------------- */
+/* `score.css` lit ces variables et n'a rien d'autre à savoir : c'est la
+   même gravure que celle du jukebox. */
+
+.score-mode {
+  --score-paper: #ffffff;
+  --score-paper-2: #eef1f7;
+  --score-ink: #0b1633;
+  --score-ink-soft: #4b5160;
+  --score-bar: #013afb;
 }

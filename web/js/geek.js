@@ -80,7 +80,8 @@ function clockTime(seconds) {
  * à droite, avec une échelle verticale soit fixe, soit auto-adaptative.
  */
 class Trace {
-  constructor(canvas, { color, fallback, max = 1, autoScale = false, fill = true } = {}) {
+  constructor(canvas, { color, fallback, max = 1, autoScale = false, fill = true,
+    calmColor = null, calmFallback = null, alertBelow = null } = {}) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
     this.colorVar = color;
@@ -89,6 +90,12 @@ class Trace {
     this.baseMax = max;
     this.autoScale = autoScale;
     this.fill = fill;
+    // Une courbe qui n'a pas franchi son seuil se trace à l'encre de la
+    // page : garder la teinte d'alerte en permanence peindrait un état
+    // que rien ne mesure, sur le panneau qui promet de tout mesurer.
+    this.calmColor = calmColor;
+    this.calmFallback = calmFallback;
+    this.alertBelow = alertBelow;
     this.values = [];
     this.width = 0;
     this.height = 0;
@@ -140,12 +147,20 @@ class Trace {
     ctx.moveTo(0, y(values[0]));
     for (let i = 1; i < values.length; i += 1) ctx.lineTo(i * step, y(values[i]));
 
-    const color = themeColor(this.colorVar, this.fallback, this.root);
-    if (this.fill) {
+    const last = values[values.length - 1] ?? 0;
+    const alerting = this.alertBelow === null || last < this.alertBelow;
+    const color = alerting || !this.calmColor
+      ? themeColor(this.colorVar, this.fallback, this.root)
+      : themeColor(this.calmColor, this.calmFallback, this.root);
+    // L'opacité du remplissage appartient au thème : sur un fond de console
+    // il donne du corps à une courbe fine, sur le papier de la gravure il
+    // ferait de chaque relevé un aplat — et l'aplat y désigne autre chose.
+    const fillAlpha = Number(themeColor('--geek-fill-alpha', '0.16', this.root)) || 0;
+    if (this.fill && fillAlpha > 0) {
       ctx.lineTo(w, h);
       ctx.lineTo(0, h);
       ctx.closePath();
-      ctx.globalAlpha = 0.16;
+      ctx.globalAlpha = fillAlpha;
       ctx.fillStyle = color;
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -263,7 +278,9 @@ const CARDS = [
   },
   {
     title: 'Rendu · machine',
-    traces: [{ key: 'fps', kind: 'trace', color: '--geek-fps', fallback: '#e07a5f', max: 70, height: 32 }],
+    traces: [{ key: 'fps', kind: 'trace', color: '--geek-fps', fallback: '#e07a5f',
+      calmColor: '--geek', calmFallback: '#74e0a6', alertBelow: 50,
+      max: 70, height: 32 }],
     fields: [
       ['fps', 'Images par seconde'],
       ['frameTime', 'Temps par image'],

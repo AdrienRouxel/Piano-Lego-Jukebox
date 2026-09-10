@@ -1,0 +1,19 @@
+#btn-piano3d { gap: 7px; white-space: nowrap; }
+.piano3d-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; padding: 0; margin: 0; border: 0; background: var(--bg); }
+.piano3d-dialog::backdrop { background: var(--bg); }
+.piano3d-dialog iframe { display: block; width: 100%; height: 100%; border: 0; }
+body:has(.piano3d-dialog[open]) { overflow: hidden; }
+@media (max-width: 600px) { #btn-piano3d { padding-inline: 10px; } }
+
+.model-viz-head { flex-wrap: wrap; }
+#model-view { width: auto; min-height: 36px; margin-left: auto; padding: 4px 28px 4px 10px; font: inherit; font-size: 12px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 0; }
+#model-view:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.piano3d-home { height: clamp(280px, 37vh, 420px); border-block: 1px solid var(--line); }
+.piano3d-home iframe { display: block; width: 100%; height: 100%; border: 0; }
+#piano3d-home-note { margin: 8px 0 0; font-size: 12px; }
+html[data-kiosk="1"] .piano3d-home { height: clamp(320px, 40vh, 560px); }
+@media (max-width: 600px) {
+  .model-viz-head .viz-title { flex-basis: 100%; }
+  #model-view { margin-left: 0; min-height: 44px; }
+  .model-viz-head .viz-sub { margin-left: auto; }
+}

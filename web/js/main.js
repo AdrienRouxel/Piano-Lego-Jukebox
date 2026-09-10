@@ -1,3 +1,4 @@
+import { publishPianoState } from './piano3d-state.js';
 /**
  * Point d'entrée : relie la bibliothèque, le lecteur audio, le hub Bluetooth
  * et l'interface.
@@ -141,7 +142,7 @@ const dom = {
 /** Réglages d'interface, à côté de ceux de la chorégraphie. */
 const UI_DEFAULTS = {
   volume: 0.8,
-  theme: 'piano',
+  theme: 'epitech',
   geek: false,
   warmup: false,
   collapsedCategories: [],
@@ -264,8 +265,9 @@ function saveSettings() {
  * chargement — cette fonction sert aux changements en cours de route.
  */
 function applyTheme(theme) {
-  if (theme === 'piano') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = theme;
+  // Chaque thème porte désormais son attribut, « piano » compris : c'est
+  // « epitech » qui est le défaut, et il n'hérite plus du :root nu.
+  document.documentElement.dataset.theme = theme;
 
   // Les pochettes générées sont écrites en style inline : il faut les
   // redessiner à la main dans la palette du nouveau thème.
@@ -902,7 +904,8 @@ async function selectTrack(index, autoplay = false, by = requestedBy) {
   dom.nowTitle.textContent = track.title;
   dom.nowArtist.textContent = track.artist ?? 'Sans interprète';
   dom.cover.style.backgroundImage = track.coverUrl ? `url("${track.coverUrl}")` : coverStyle(track.id, settings.theme);
-  dom.cover.textContent = track.coverUrl ? '' : '♪';
+  // Le fond gravé porte déjà sa note : plus besoin d'un glyphe par-dessus.
+  dom.cover.textContent = '';
 
   try {
     await player.load(track);
@@ -1330,7 +1333,7 @@ function renderTranscription(message = null, ratio = 0) {
   dom.standWork.hidden = !message;
   if (!message) return;
   dom.standWorkLabel.textContent = message;
-  dom.standWorkFill.style.width = `${Math.round(ratio * 100)}%`;
+  dom.standWorkFill.style.setProperty('--fill', ratio.toFixed(4));
 }
 
 function wireRequests() {
@@ -2306,9 +2309,25 @@ function frame(now) {
       : player.midi ? '—' : 'pas de partition';
   }
 
+  // Une seule valeur porte la position dans le morceau. Toutes les régions du
+  // système — les deux portées, le curseur qui les traverse, la jauge du
+  // moteur — s'en déduisent en CSS : rien ne s'anime pour son propre compte.
+  const progress = player?.track && player.duration
+    ? Math.min(1, Math.max(0, player.currentTime / player.duration))
+    : 0;
+  document.documentElement.style.setProperty('--t', progress.toFixed(5));
+
   const power = warmup.active ? warmup.power : driver?.running ? driver.power : 0;
-  camshaft.update(power, dt);
-  dom.powerFill.style.width = `${Math.abs(power)}%`;
+  // Follow the last command written to the real hub, including direction,
+  // ramps and braking. With no hub, identify the calculated preview as such.
+  const visualPower = hub.connected ? hub.currentPower : settings.enabled ? power * settings.direction : 0;
+  camshaft.update(visualPower, dt);
+  publishPianoState({
+    playing: Boolean(player?.isPlaying), title: player?.track?.title ?? '',
+    connected: hub.connected, motorEnabled: settings.enabled && motorAllowed(),
+    power: visualPower, ...camshaft.state, time: player?.currentTime ?? 0,
+  }, now);
+  dom.powerFill.style.transform = `scaleX(${(Math.abs(power) / 100).toFixed(4)})`;
   const second = secondHub.connected && driver?.running ? driver.followerPower : null;
   dom.vizPower.textContent = power
     ? `Moteur ${Math.abs(power)} %${second === null ? '' : ` · 2ᵉ piano ${Math.abs(second)} %`}`

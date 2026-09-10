@@ -89,7 +89,6 @@ body[data-score="1"] { overflow: hidden; }
   width: 34px;
   height: 34px;
   border: 1px solid #ffffff26;
-  border-radius: 999px;
   background: #ffffff0f;
   color: inherit;
   font-size: 15px;
@@ -109,7 +108,6 @@ body[data-score="1"] { overflow: hidden; }
   width: 30px;
   height: 30px;
   border: 1px solid #ffffff26;
-  border-radius: 8px;
   background: #ffffff0f;
   color: inherit;
   font-size: 16px;
@@ -133,9 +131,8 @@ body[data-score="1"] { overflow: hidden; }
   flex: 1;
   min-height: 0;
   margin: 8px;
-  border-radius: 10px;
-  background: linear-gradient(150deg, var(--score-paper), var(--score-paper-2));
-  box-shadow: 0 10px 30px -18px #000, inset 0 0 0 1px #00000014;
+  background: var(--score-paper);
+  box-shadow: inset 0 0 0 1px #0b163326;
   overflow: hidden;
 }
 
@@ -261,6 +258,41 @@ body[data-score="1"] { overflow: hidden; }
   .score-bar { padding: 4px 10px; gap: 10px; }
   .score-title { font-size: 13px; }
   .score-artist { display: none; }
-  .score-sheet { margin: 5px; border-radius: 8px; }
+  .score-sheet { margin: 5px; }
   .score-close { width: 30px; height: 30px; }
 }
+
+/* ================================================================== */
+/* LA GRAVURE                                                          */
+/*                                                                     */
+/* Le pupitre est ce monde à l'état pur : c'est lui qui donne le ton au */
+/* reste de l'interface, et non l'inverse. Sous la charte Epitech, le   */
+/* papier devient blanc, la barre devient la plaque bleue pleine, et    */
+/* les notes qui sonnent s'encrent dans le bleu de l'école. Les deux    */
+/* autres thèmes gardent leur papier : une partition prend la couleur   */
+/* du papier sur lequel on la tire.                                     */
+/* ================================================================== */
+
+[data-theme="epitech"] .score-mode {
+  --score-paper: #ffffff;
+  --score-paper-2: #eef1f7;
+  --score-ink: #0b1633;
+  --score-ink-soft: #4b5160;
+  --score-bar: #013afb;
+}
+
+/* Sur la plaque retournée du mode borne, l'accent du jukebox est passé au
+   blanc : sur un papier blanc, il ne marquerait plus rien. Le pupitre
+   reprend donc le bleu pour lui-même. */
+html[data-theme="epitech"][data-kiosk="1"] .score-mode {
+  --score-accent: #013afb;
+  --score-bar: #001a7a;
+}
+
+/* --- Le pupitre, gravé lui aussi ------------------------------------ */
+/* Les jetons avaient changé, pas la langue : une feuille à coins
+   arrondis posée sur un dégradé, c'est exactement le vocabulaire que le
+   reste de l'application vient d'abandonner. Une page de partition n'a
+   ni coin rond, ni ombre portée, ni papier peint en dégradé. */
+
+

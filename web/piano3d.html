@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>À l’intérieur du piano — LEGO 21323</title>
+  <link rel="stylesheet" href="piano3d.css">
+  <script>if (new URLSearchParams(location.search).get('view') === 'home') document.documentElement.dataset.view = 'home';</script>
+  <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js"}}</script>
+</head>
+<body>
+  <header class="atelier-header">
+    <button id="close" class="back" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h13"/></svg><span>Jukebox</span></button>
+    <span class="atelier-name">LEGO Ideas <b>21323</b></span>
+    <button id="motion" class="motion-button" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 10 7-10 7z"/></svg><span>Arrêter l’animation</span></button>
+  </header>
+  <main class="atelier">
+    <section class="viewport" aria-label="Piano en trois dimensions">
+      <div class="scene-title"><h1>À l’intérieur<br>du piano<span>_</span></h1><p>Chaque pièce a son rôle. Explorez-le.</p></div>
+      <div id="scene" aria-busy="true"></div>
+      <div id="loading" role="status">Assemblage du piano…</div>
+      <div id="error" role="alert" hidden><h2>La 3D n’a pas pu démarrer.</h2><p>Activez l’accélération graphique de votre navigateur, puis réessayez.</p><button id="retry" type="button">Réessayer</button></div>
+      <div id="tooltip" hidden></div>
+      <div class="view-tools" aria-label="Point de vue">
+        <button type="button" id="home" title="Recentrer la vue" aria-label="Recentrer la vue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button type="button" id="top" title="Vue de dessus" aria-label="Vue de dessus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM5 9h14M9 9v10M13 9v10"/></svg></button>
+        <button type="button" id="rotate" title="Rotation automatique" aria-label="Rotation automatique" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 8M20 4v6h-6"/></svg></button>
+        <button type="button" id="cutaway" title="Voir à travers la carrosserie" aria-label="Voir à travers la carrosserie" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M12 3v6"/></svg></button>
+        <button type="button" id="zoom-in" title="Zoomer dans les pièces" aria-label="Zoomer dans les pièces"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6M7 10h6M10 7v6"/></svg></button>
+        <button type="button" id="zoom-out" title="Dézoomer" aria-label="Dézoomer"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6M7 10h6"/></svg></button>
+      </div>
+      <p class="gesture-hint">Glisser pour tourner <span>·</span> Molette / pincement pour zoomer <span>·</span> Clic droit pour déplacer</p>
+    </section>
+    <aside class="inspector" aria-label="Fiche du composant">
+      <section id="build-panel" hidden aria-label="Montage guidé">
+        <div class="build-heading"><h2>Montage accéléré</h2><button id="build-exit" type="button" aria-label="Quitter le montage" title="Quitter le montage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+        <p class="build-intro">16 séquences d’après la notice LEGO. Avancez à votre rythme ; tournez et zoomez à tout moment.</p>
+        <label for="build-chapter">Aller à une séquence</label><select id="build-chapter"></select>
+        <div class="build-current" aria-live="polite" aria-atomic="true"><p id="build-page"></p><h3 id="build-title"></h3><p id="build-description"></p></div>
+        <a id="build-source" target="_blank" rel="noopener noreferrer">Consulter ces pages dans la notice officielle</a>
+        <p class="model-note">Les étapes de la notice sont regroupées en sous-ensembles. L’ordre interne des formes 3D est illustratif ; ce mode ne remplace pas la notice brique par brique.</p>
+        <p id="build-status" role="status"></p>
+      </section>
+      <div class="live-playback"><strong id="live-track">Aucune musique en lecture</strong><p id="live-status" role="status">Lancez un morceau dans le jukebox pour animer la mécanique.</p><output id="live-power" hidden></output></div>
+      <div class="inspector-head"><span>Les composants</span><span id="part-count"></span></div>
+      <label class="sr-only" for="part-select">Choisir un composant</label>
+      <select id="part-select"><option value="">Vue d’ensemble</option></select>
+      <div id="part-info" aria-live="polite" aria-atomic="true"></div>
+      <button id="clear" type="button" class="text-button" hidden>Revenir à l’ensemble <span aria-hidden="true">↗</span></button>
+      <div class="explore-list" aria-label="Découvrir un mécanisme">
+        <button type="button" data-part="keyboard">Le clavier <span>25 touches</span></button>
+        <button type="button" data-part="cams">L’arbre à cames <span>Le mouvement</span></button>
+        <button type="button" data-part="motor">Le moteur <span>L’entraînement</span></button>
+        <button type="button" data-part="hub">Le hub <span>La commande</span></button>
+      </div>
+      <p class="model-note">Reconstitution pédagogique, modélisée par code. Les formes et l’éclatement sont simplifiés ; ce n’est pas une notice de montage des 3 662 briques.</p>
+    </aside>
+    <footer class="explosion-controls" id="exploration-controls">
+      <div class="slider-heading"><label for="explode">Éclater le piano</label><output id="amount" for="explode">0 %</output></div>
+      <div class="slider-track"><span>Assemblé</span><input id="explode" type="range" min="0" max="100" step="1" value="0" aria-label="Écartement des pièces"><span>Éclaté</span></div>
+      <div class="assembly-actions"><button type="button" class="assembly" id="assemble"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 2 8M4 4v6h6"/></svg>Réassembler</button><button type="button" class="assembly" id="build-start"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 8 9-5 9 5-9 5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg>Montage accéléré</button></div>
+    </footer>
+    <footer class="build-controls" id="build-controls" hidden aria-label="Lecture du montage">
+      <div class="build-transport"><button id="build-prev" type="button" aria-label="Séquence précédente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-14L8 12l10 7z"/></svg></button><button id="build-play" type="button">Pause</button><button id="build-next" type="button" aria-label="Séquence suivante"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M6 5l10 7-10 7z"/></svg></button></div>
+      <div class="build-timeline"><div><label for="build-seek">Progression du montage</label><output id="build-count" for="build-seek">1 / 16</output></div><input id="build-seek" type="range" min="1" max="16" step="1" value="1"></div>
+      <div class="build-speed"><label for="build-speed">Vitesse</label><select id="build-speed"><option value="0.25">0,25 ×</option><option value="0.5">0,5 ×</option><option value="1" selected>1 ×</option><option value="2">2 ×</option><option value="4">4 ×</option><option value="8">8 ×</option></select></div>
+    </footer>
+  </main>
+  <script type="module">
+    document.getElementById('close').onclick = () => window.parent !== window ? window.parent.postMessage('piano3d:close', location.origin) : location.assign('/');
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('close').click(); });
+    document.getElementById('retry').onclick = () => location.reload();
+    import('./js/piano3d.js').catch(error => {
+      console.error('Piano 3D:', error);
+      document.getElementById('loading').hidden = true;
+      document.getElementById('error').hidden = false;
+      document.getElementById('scene').setAttribute('aria-busy', 'false');
+    });
+  </script>
+</body>
+</html>

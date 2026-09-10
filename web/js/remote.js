@@ -20,6 +20,12 @@
  * recharger la page ensuite sans le paramètre.
  */
 
+/* Les deux marques de la liste, dessinées dans le même trait que le reste
+   de l'application : une page qui grave ses têtes de note ne colle pas un
+   glyphe pris à Unicode. */
+const GO_ADD = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5.5v13M5.5 12h13"/></svg>';
+const GO_DONE = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.6 4.4 4.4L19 7.4"/></svg>';
+
 const el = (id) => document.getElementById(id);
 
 const dom = {
@@ -180,7 +186,7 @@ function renderTracks() {
     button.dataset.queued = queued.has(track.id) ? '1' : '0';
     button.innerHTML =
       '<span class="body"><span class="title"></span><span class="artist"></span></span>' +
-      `<span class="go" aria-hidden="true">${queued.has(track.id) ? '✓' : '+'}</span>`;
+      `<span class="go" aria-hidden="true">${queued.has(track.id) ? GO_DONE : GO_ADD}</span>`;
     button.querySelector('.title').textContent = track.title;
     button.querySelector('.artist').textContent = track.artist ?? track.category;
     button.addEventListener('click', () => request(track, button));
@@ -253,7 +259,7 @@ function tickRest() {
   }
   dom.nowTitle.textContent = 'Le piano souffle un instant';
   dom.nowArtist.textContent = `Le moteur refroidit — reprise dans ${remaining} s`;
-  dom.nowFill.style.width = '100%';
+  dom.nowFill.style.transform = 'scaleX(1)';
 }
 
 function showRest(seconds) {
@@ -295,8 +301,8 @@ function apply(state) {
   dom.now.dataset.state = now?.state ?? 'paused';
   dom.nowTitle.textContent = now?.title ?? 'Le jukebox n’a pas encore démarré';
   dom.nowArtist.textContent = now?.artist ?? '';
-  const progress = now?.duration ? Math.min(100, (now.position / now.duration) * 100) : 0;
-  dom.nowFill.style.width = `${progress}%`;
+  const progress = now?.duration ? Math.min(1, now.position / now.duration) : 0;
+  dom.nowFill.style.transform = `scaleX(${progress.toFixed(4)})`;
 
   applyQueue(state);
 }
@@ -326,7 +332,7 @@ function applyQueue(state) {
   for (const button of dom.tracks.querySelectorAll('.track')) {
     const inQueue = queued.has(button.dataset.id);
     button.dataset.queued = inQueue ? '1' : '0';
-    button.querySelector('.go').textContent = inQueue ? '✓' : '+';
+    button.querySelector('.go').innerHTML = inQueue ? GO_DONE : GO_ADD;
   }
 }
 
