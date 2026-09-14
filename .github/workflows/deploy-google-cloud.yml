@@ -1,0 +1,47 @@
+name: Déployer le piano sur Google Cloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: piano-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT: piano-508604
+      REGION: europe-west1
+      IMAGE: europe-west1-docker.pkg.dev/piano-508604/piano/jukebox:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Vérifier les tests locaux
+        run: npm test
+      - name: Construire le conteneur
+        run: docker build -t "$IMAGE" .
+      - name: Authentification Google sans clé privée
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: projects/14453786320/locations/global/workloadIdentityPools/github/providers/piano
+          service_account: piano-deploy@piano-508604.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+      - name: Publier l'image
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker push "$IMAGE"
+      - name: Mettre à jour le service existant
+        run: |
+          gcloud run services update piano --project="$PROJECT" --region="$REGION" \
+            --image="$IMAGE" --update-labels="commit-sha=$GITHUB_SHA" --quiet
+      - name: Tester le site déployé
+        run: node scripts/test-deployment.mjs https://piano-14453786320.europe-west1.run.app

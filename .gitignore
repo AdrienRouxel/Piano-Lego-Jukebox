@@ -1,0 +1,12 @@
+# Jetons de pilotage et configuration locale privée.
+.stand-session.json
+.env
+.env.*
+gha-creds-*.json
+
+# Fichiers locaux générés.
+.DS_Store
+**/.DS_Store
+node_modules/
+.venv*/
+__pycache__/

@@ -1,0 +1,14 @@
+.gcloudignore
+.git
+.DS_Store
+**/.DS_Store
+.stand-session.json
+.env
+.env.*
+gha-creds-*.json
+*.pem
+*.key
+node_modules
+.venv*
+**/__pycache__
+*.log

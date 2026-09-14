@@ -22,6 +22,8 @@ host.append(renderer.domElement);
 const scene=new T.Scene(); scene.background=new T.Color(0xf4f5f8);
 scene.fog=new T.Fog(0xf4f5f8,48,95);
 const camera=new T.PerspectiveCamera(36,1,.025,150);
+// L'aperçu dispose de son propre cadre : l'instrument y occupe la scène.
+if (embedded) { camera.zoom = 1.22; camera.updateProjectionMatrix(); }
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.075;controls.minDistance=.6;controls.maxDistance=58;controls.maxPolarAngle=Math.PI*.85;controls.minPolarAngle=.045;
 controls.autoRotateSpeed=.65;controls.enablePan=true;controls.screenSpacePanning=true;controls.zoomToCursor=true;controls.target.set(0,3.7,0);

@@ -97,9 +97,12 @@ un contexte sécurisé. Les visiteurs, eux, arrivent sur leur forfait mobile.
   grille « blueprint », underscore en ponctuation de titre, triptyque
   *Tech / Together / Tomorrow* pour les états. Le logo est fourni
   (`web/assets/brand/epitech-logo.png`).
-- **Trois thèmes coexistent et doivent rester cohérents entre eux** : *Epitech*
-  (défaut), *Piano* (bois sombre, laiton, ivoire) et *LEGO* (plaque à tenons,
-  bandeau rouge/orange/jaune/vert/bleu, une couleur de brique par demi-ton).
+- **Quatre thèmes coexistent et doivent rester cohérents entre eux** : *Epitech*
+  (défaut), *Piano* (bois sombre, laiton, ivoire), *LEGO* (plaque à tenons,
+  bandeau rouge/orange/jaune/vert/bleu, une couleur de brique par demi-ton) et
+  *Moderne* (fond glacier, scène contenue dans la fenêtre, modèle 3D à gauche,
+  notes MIDI descendantes au-dessus du clavier à droite, transport toujours
+  visible et bibliothèque à la demande ; scène empilée sur téléphone).
 - **Aucune marque LEGO n'est reproduite** — seulement la palette et la matière du
   plastique. Cette limite est délibérée et se maintient.
 - **Voix** : française, précise, sans jargon commercial. Elle nomme les

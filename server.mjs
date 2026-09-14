@@ -480,6 +480,10 @@ let lanBound = null;
 
 /** État du mode local, tel que l'interface du jukebox le montre. */
 function localMode() {
+  // Dans Cloud Run, 0.0.0.0 est l'écoute du conteneur, pas le Wi-Fi du piano.
+  if (process.env.K_SERVICE) {
+    return { enabled: false, pinned: true, supported: false, address: null, port: PORT, hosted: true };
+  }
   const address = lanBound ?? lanAddress();
   return {
     // Démarré avec `--lan`, le serveur écoute déjà partout : le mode est acquis

@@ -7,12 +7,13 @@
   <meta name="description" content="Télémétrie temps réel du jukebox LEGO Grand Piano, mise en page pour un second écran." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="moderne.css" />
   <script>
     // Même thème que la fenêtre du jukebox, appliqué avant le premier rendu.
     try {
       const stored = JSON.parse(localStorage.getItem('lego-piano-jukebox/settings') ?? '{}');
       // « piano » est le thème par défaut : il n'a pas d'attribut.
-      if (['epitech', 'lego'].includes(stored.theme)) document.documentElement.dataset.theme = stored.theme;
+      if (['epitech', 'lego', 'moderne'].includes(stored.theme)) document.documentElement.dataset.theme = stored.theme;
     } catch { /* stockage indisponible : thème par défaut */ }
   </script>
 </head>

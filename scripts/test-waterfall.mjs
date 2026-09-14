@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { indexNotes, visibleNotes, noteBounds } from '../web/js/music/waterfall.js';
+
+const held = { midi: 48, time: 0, duration: 12 };
+const repeated = { midi: 60, time: 5, duration: .5 };
+const next = { midi: 60, time: 7, duration: 1 };
+const far = { midi: 108, time: 20, duration: 1 };
+const index = indexNotes([far, next, repeated, held, { midi: 200, time: 0, duration: 5 }]);
+assert.deepEqual(visibleNotes(index, 5), [held, repeated, next], 'Une basse tenue reste visible sous les nouvelles notes');
+assert.deepEqual(visibleNotes(index, 6), [held, next], 'Une note terminée disparaît, même si la même touche revient');
+assert.deepEqual(visibleNotes(index, 21), [], 'La fin du morceau efface la piste');
+assert.deepEqual(visibleNotes(index, 0), [held], 'Un retour au début ne conserve pas les notes de la position précédente');
+assert.deepEqual(visibleNotes(index, 17), [far], 'La dernière touche du clavier est incluse');
+assert.deepEqual(visibleNotes(index, 5, 0), [held, repeated], 'Le mode sans mouvement ne montre que les notes actuelles');
+assert.deepEqual(noteBounds(next, 3, 400), { top: 0, bottom: 0 }, 'La note entre par le haut quatre secondes avant');
+assert.deepEqual(noteBounds(next, 6, 400), { top: 200, bottom: 300 });
+assert.deepEqual(noteBounds(next, 7, 400), { top: 300, bottom: 400 }, 'Le bord avant touche le clavier à son attaque');
+assert.deepEqual(noteBounds(next, 7.5, 400), { top: 350, bottom: 400 }, 'Une note tenue se résorbe au contact du clavier');
+assert.deepEqual(indexNotes([]), []);
+assert.deepEqual(indexNotes([{ midi: 60, time: NaN, duration: 1 }, { midi: 60, time: 0, duration: -1 }]), []);
+console.log('✓ Notes descendantes : anticipation, accords, notes tenues, reprise, fin et mode sans mouvement');

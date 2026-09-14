@@ -18,6 +18,8 @@ import { Player } from './music/player.js';
 import { MotionDriver, DEFAULT_SETTINGS } from './music/choreography.js';
 import { Warmup } from './music/warmup.js';
 import { PlayableKeys } from './music/keys.js';
+import { NoteWaterfall } from './music/waterfall.js';
+import { initModernLayout } from './modern-layout.js';
 import { GeekMode } from './geek.js';
 import { wireHubTools, HUB_TOOL_SETTINGS } from './hubtools.js';
 import { DocReader } from './reader.js';
@@ -230,6 +232,8 @@ let seeking = false;
 // Clavier « partition » : les 88 touches d'un vrai piano, pour qu'aucune note
 // du fichier MIDI ne passe à la trappe.
 const scoreKeys = buildKeyboard(dom.keyboardScore, 21, 108);
+const waterfall = new NoteWaterfall(el('note-waterfall'), el('waterfall-empty'), scoreKeys);
+initModernLayout();
 // Clavier « modèle » : les 25 touches du 21323, de do3 à do5.
 const camshaft = buildCamshaft(dom.keyboardLego, 48, 25);
 
@@ -268,6 +272,7 @@ function applyTheme(theme) {
   // Chaque thème porte désormais son attribut, « piano » compris : c'est
   // « epitech » qui est le défaut, et il n'hérite plus du :root nu.
   document.documentElement.dataset.theme = theme;
+  document.dispatchEvent(new CustomEvent('jukebox:themechange', { detail: { theme } }));
 
   // Les pochettes générées sont écrites en style inline : il faut les
   // redessiner à la main dans la palette du nouveau thème.
@@ -1195,6 +1200,12 @@ function renderLocalSwitch() {
   dom.localSwitch.disabled = locked;
   dom.localField.dataset.locked = locked ? '1' : '0';
 
+  if (local.hosted) {
+    dom.localHint.textContent =
+      'Le site est hébergé sur Google Cloud : les visiteurs peuvent utiliser leur forfait mobile. ' +
+      'Le piano se connecte en Bluetooth à cet ordinateur.';
+    return;
+  }
   if (local.pinned) {
     dom.localHint.textContent =
       'Déjà ouvert : le serveur a été lancé avec « npm run stand », il écoute sur le réseau depuis le départ. ' +
@@ -2286,6 +2297,7 @@ function frame(now) {
   lastFrame = now;
 
   warmup.tick(now);
+  waterfall.update(player, warmup.active || (playable.enabled && !player?.isPlaying));
 
   if (warmup.active) {
     // Pendant la mise en route, c'est la réponse du piano qui s'affiche.

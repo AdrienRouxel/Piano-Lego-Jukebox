@@ -37,12 +37,25 @@ function renderHome() {
   if (show3d) mount(home, true);
   else unmount();
 }
-try { choice.value = localStorage.getItem(preferenceKey) === '3d' ? '3d' : 'keys'; } catch {}
+try {
+  const storedView = localStorage.getItem(preferenceKey);
+  choice.value = storedView === '3d' ? '3d' : 'keys';
+} catch {}
+
+// Le thème moderne ouvre sa scène avec l'instrument à gauche ; le sélecteur
+// permet toujours de revenir aux touches pendant la session.
+if (document.documentElement.dataset.theme === 'moderne') choice.value = '3d';
 choice.addEventListener('change', () => {
   try { localStorage.setItem(preferenceKey, choice.value); } catch {}
   renderHome();
 });
 renderHome();
+
+document.addEventListener('jukebox:themechange', event => {
+  if (event.detail?.theme !== 'moderne' || choice.value === '3d') return;
+  choice.value = '3d';
+  renderHome();
+});
 
 trigger.addEventListener('click', () => {
   if (dialog.open) return;

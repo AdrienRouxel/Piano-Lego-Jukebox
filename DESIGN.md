@@ -456,3 +456,55 @@ paper white would mark nothing.
   "acting" or "sounding".
 - **Don't** add a per-widget animation or a second time source; anything tied to
   musical time reads `--t`.
+
+## Theme Variant: Moderne — L'instrument liquide
+
+La variante optionnelle `moderne` compose un instrument de lecture dans la fenêtre :
+fond glacier uni `#edf3f7`, surfaces blanches, texte `#111318` en IBM Plex Sans
+embarquée, scène LEGO claire et piste MIDI sombre `#141c28`. Les titres restent
+compacts ; la scène et les notes constituent le centre visuel. Cette direction
+s'applique au thème Moderne ; la direction Epitech ci-dessus reste sa propre référence.
+
+### Composition et adaptation
+
+Le corps du jukebox occupe `100dvh`, sans défilement du document. La barre supérieure
+précède le titre du morceau, puis une scène extensible en deux colonnes
+`minmax(0, .85fr) minmax(0, 1.35fr)` : modèle LEGO à gauche, notes et clavier à
+droite, soit environ 38 % / 62 %. Les panneaux ont un rayon de 18px et un écart
+nominal de 18px. La vue 3D est sélectionnée à l'activation du thème ; le sélecteur
+permet toujours de changer de vue. Sa hauteur suit l'espace disponible.
+
+La barre de transport blanche occupe une rangée dédiée en bas de la grille et
+reste visible ; son bouton lecture noir de 52px est le contrôle principal. Sous
+761px de largeur, le modèle précède la piste dans une seule colonne, le clavier
+mesure 54px et le transport se répartit sur deux lignes. Les commandes se
+compactent aussi sur les fenêtres d'ordinateur de 640px de haut ou moins.
+Les formats 1280 × 720, 1024 × 600 et 390 × 844 ont été vérifiés sans défilement
+du document.
+
+### Notes et mouvement
+
+Les notes MIDI descendent vers leurs touches sur un horizon de quatre secondes,
+avec une hauteur proportionnelle à leur durée. Leur position lit le temps audio
+du lecteur : lecture, pause et déplacement dans le morceau restent synchronisés.
+Les notes graves (`midi < 60`) sont bleues `#65b5f6`, les aiguës ambrées `#f5bd73` ;
+la légende et l'allumage du clavier reprennent ces deux couleurs. Les couloirs
+s'alignent sur le clavier de 88 notes, sans particules décoratives.
+
+Avec `prefers-reduced-motion: reduce`, les notes actuelles deviennent des repères
+fixes au bord du clavier, sans descente continue. Les états sans morceau, en
+chargement, sans MIDI et en jeu libre expliquent ce qui peut être affiché. Les
+notes sont des données musicales ; l'arbre à cames commun du LEGO est une
+estimation mécanique explicitement nommée, distincte des mesures du hub. L'écran
+ne représente jamais les touches physiques comme pilotables individuellement.
+
+### Surfaces à la demande
+
+La bibliothèque s'ouvre en popover depuis « Bibliothèque » ou l'état vide de la
+piste, avec recherche focalisée et liste défilante à l'intérieur. Choisir un titre
+ferme le catalogue et place le focus sur la lecture. La bibliothèque se ferme
+également à l'ouverture des autres panneaux, sans déplacer la scène ni le
+transport. Les réglages conservent leur feuille arrondie à défilement interne.
+Les ombres servent les surfaces superposées ; le fond principal reste uni.
+Aucune nouvelle image raster n'est nécessaire : modèle, notes et ressources
+locales existantes portent cette variante.

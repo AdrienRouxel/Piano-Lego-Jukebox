@@ -180,6 +180,17 @@ export function coverStyle(id, theme = 'piano') {
     return `${LEGO_STUDS}, linear-gradient(135deg, ${LEGO_COVER_COLORS[first]} 0 50%, ${LEGO_COVER_COLORS[second]} 50% 100%)`;
   }
 
+  if (theme === 'moderne') {
+    const palettes = [
+      ['#c7f7ff', '#6e7cff', '#ffd4f4'],
+      ['#d9ffd8', '#45d8bd', '#9bb8ff'],
+      ['#fff0bc', '#ff8fc5', '#8ea4ff'],
+      ['#d9ddff', '#8fe9ff', '#c4ffd8'],
+    ];
+    const palette = palettes[hash % palettes.length];
+    return `linear-gradient(145deg, ${palette[0]} 0%, ${palette[1]} 54%, ${palette[2]} 100%)`;
+  }
+
   const hue = hash % 360;
   const hue2 = (hue + 40 + (hash >>> 8) % 60) % 360;
   return `linear-gradient(140deg, hsl(${hue} 34% 32%), hsl(${hue2} 30% 16%))`;
