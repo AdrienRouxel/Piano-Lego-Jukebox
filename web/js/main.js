@@ -719,6 +719,40 @@ async function removeTrack(track) {
   toast(`« ${track.title} » supprimé.`, 'success');
 }
 
+/**
+ * Supprime pour de bon une demande encore dans la file — fichiers compris.
+ * Seules les demandes venues d'un lien de plateforme (catégorie « Demandes »)
+ * s'effacent ainsi ; les autres catégories sont la bibliothèque déposée à la
+ * main, et ce bouton ne fait alors que la retirer de la file (voir `renderQueue`).
+ */
+async function removeQueuedRequest(entry) {
+  const label = entry.artist ? `${entry.artist} — ${entry.title}` : entry.title;
+  if (!window.confirm(`Supprimer « ${label} » ?\n\nLe morceau sera retiré de la file et effacé du disque.`)) return;
+
+  const slash = entry.id.indexOf('/');
+  const url =
+    `/api/tracks?category=${encodeURIComponent(entry.id.slice(0, slash))}` +
+    `&name=${encodeURIComponent(entry.id.slice(slash + 1))}`;
+
+  try {
+    const response = await fetch(url, { method: 'DELETE', headers: stand.controlHeaders });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      toast(data.error ?? 'La suppression a échoué.', 'error', 6000);
+      return;
+    }
+  } catch {
+    toast('Serveur injoignable : le morceau n’a pas été supprimé.', 'error', 6000);
+    return;
+  }
+
+  // Le serveur a déjà retiré l'entrée de la file et l'annonce par SSE ; la
+  // bibliothèque, elle, ne se rafraîchit pas toute seule.
+  await loadLibrary();
+  logLine(dom.log, `Demande supprimée : ${label}.`, 'warn');
+  toast(`« ${entry.title} » supprimé.`, 'success');
+}
+
 /** Remet la scène à son état d'accueil, quand plus rien ne joue. */
 function clearNowPlaying() {
   player?.unload();
@@ -1194,12 +1228,19 @@ function renderQueue() {
   dom.queueList.textContent = '';
 
   queue.forEach((entry, index) => {
+    // Un morceau arrivé par lien de plateforme existe pour de bon sur le
+    // disque : la croix l'efface plutôt que de le faire juste sauter la file.
+    // Les autres catégories sont la bibliothèque déposée à la main — hors de
+    // question de la vider depuis ce bouton.
+    const deletable = entry.category === REQUEST_CATEGORY;
     const item = document.createElement('li');
     item.dataset.transcribe = entry.transcribe ? '1' : '0';
     item.innerHTML =
       '<span class="rank"></span>' +
       '<span class="label"><b></b><small></small></span>' +
-      '<button class="queue-drop" type="button" aria-label="Retirer de la file">✕</button>';
+      `<button class="queue-drop" type="button" aria-label="${
+        deletable ? 'Supprimer cette demande' : 'Retirer de la file'
+      }">✕</button>`;
     item.querySelector('.rank').textContent = String(index + 1);
     item.querySelector('b').textContent = entry.title;
     const origin = entry.name && settings.showNames ? `demandé par ${entry.name}` : null;
@@ -1207,7 +1248,9 @@ function renderQueue() {
     item.querySelector('small').textContent = [entry.artist ?? entry.category, source, origin]
       .filter(Boolean)
       .join(' · ');
-    item.querySelector('.queue-drop').addEventListener('click', () => stand.drop(entry.key));
+    item.querySelector('.queue-drop').addEventListener('click', () =>
+      deletable ? removeQueuedRequest(entry) : stand.drop(entry.key)
+    );
     dom.queueList.append(item);
   });
 }
