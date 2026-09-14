@@ -693,6 +693,8 @@ const VENV_PYTHON = path.join(
 const TRANSCRIBE_SCRIPT = path.join(ROOT, 'scripts', 'transcribe.py');
 /** Un extrait de trente secondes en mono 22 kHz pèse moins de 2 Mo. */
 const AUDIO_BODY_LIMIT = 32 * 1024 * 1024;
+/** Une seule inférence à la fois : l'instance Cloud Run n'a qu'un CPU. */
+let transcriptionBusy = false;
 
 /** Lance le pont Python et renvoie ce qu'il a écrit sur la sortie standard. */
 function runPython(args) {
@@ -743,14 +745,24 @@ async function handleTranscribe(req, res) {
     return;
   }
 
-  const body = await readRawBody(req, AUDIO_BODY_LIMIT);
-  if (!body || body.length < 44 || body.subarray(0, 4).toString('latin1') !== 'RIFF') {
-    sendJson(res, 400, { error: 'Le corps attendu est un fichier WAV.' });
+  if (transcriptionBusy) {
+    // Le navigateur se rabattra sur son moteur embarqué. Drainer le corps évite
+    // de laisser une connexion à moitié lue sur l'instance.
+    req.resume();
+    sendJson(res, 429, { error: 'Une transcription est déjà en cours. Réessaie dans un instant.' });
     return;
   }
+  transcriptionBusy = true;
 
-  const scratch = path.join(os.tmpdir(), `jukebox-${Date.now()}-${process.pid}.wav`);
+  let scratch = null;
   try {
+    const body = await readRawBody(req, AUDIO_BODY_LIMIT);
+    if (!body || body.length < 44 || body.subarray(0, 4).toString('latin1') !== 'RIFF') {
+      sendJson(res, 400, { error: 'Le corps attendu est un fichier WAV.' });
+      return;
+    }
+
+    scratch = path.join(os.tmpdir(), `jukebox-${Date.now()}-${process.pid}.wav`);
     await fsp.writeFile(scratch, body);
     const { code, out, err } = await runPython([scratch]);
     if (code !== 0) {
@@ -762,7 +774,8 @@ async function handleTranscribe(req, res) {
   } catch (error) {
     sendJson(res, 500, { error: error.message });
   } finally {
-    await fsp.unlink(scratch).catch(() => {});
+    if (scratch) await fsp.unlink(scratch).catch(() => {});
+    transcriptionBusy = false;
   }
 }
 

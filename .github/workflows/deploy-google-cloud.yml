@@ -15,7 +15,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
@@ -42,6 +42,7 @@ jobs:
       - name: Mettre à jour le service existant
         run: |
           gcloud run services update piano --project="$PROJECT" --region="$REGION" \
-            --image="$IMAGE" --update-labels="commit-sha=$GITHUB_SHA" --quiet
+            --image="$IMAGE" --memory=1Gi \
+            --update-labels="commit-sha=$GITHUB_SHA" --quiet
       - name: Tester le site déployé
         run: node scripts/test-deployment.mjs https://piano-14453786320.europe-west1.run.app

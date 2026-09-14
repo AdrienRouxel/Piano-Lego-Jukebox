@@ -65,7 +65,7 @@ PY
 
 gcloud run deploy "$PIANO_SERVICE" --project="$PIANO_PROJECT" --region="$PIANO_REGION" \
   --image="$PIANO_IMAGE" --service-account="$PIANO_ACCOUNT" \
-  --execution-environment=gen2 --cpu=1 --memory=512Mi \
+  --execution-environment=gen2 --cpu=1 --memory=1Gi \
   --min=0 --max=1 --min-instances=0 --max-instances=1 \
   --concurrency=80 --timeout=3600 --cpu-throttling --no-cpu-boost \
   --port=8080 --env-vars-file=.env.piano-cloud.json \

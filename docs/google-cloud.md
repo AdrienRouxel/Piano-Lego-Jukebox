@@ -25,7 +25,7 @@ dépôt, utiliser le déploiement manuel ci-dessous ou l'application.
 
 ## Ressources
 
-- Cloud Run : 1 vCPU, 512 Mio, facturation à la requête, 0 instance minimale,
+- Cloud Run : 1 vCPU, 1 Gio, facturation à la requête, 0 instance minimale,
   1 instance maximale, concurrence 80 et délai maximal de requête d'une heure.
 - Cloud Storage : bucket privé `piano-508604-tracks`, monté dans `/app/tracks`.
   Les morceaux ajoutés depuis l'application survivent aux redémarrages.
@@ -34,8 +34,10 @@ dépôt, utiliser le déploiement manuel ci-dessous ou l'application.
 
 Les flux d'événements du stand occupent plusieurs requêtes simultanées : une
 fraction de CPU, qui impose une concurrence de 1 dans Cloud Run, ne convient
-pas. La mémoire de 512 Mio permet l'environnement de seconde génération et le
-montage du stockage. Aucune VM, aucun équilibreur externe ni base de données.
+pas. La mémoire de 1 Gio accueille Node, FFmpeg et Basic Pitch avec son moteur
+ONNX. Le serveur n'accepte qu'une inférence à la fois afin qu'une rafale de
+demandes ne sature pas l'instance. Aucune VM, aucun équilibreur externe ni base
+de données.
 
 Quand aucun navigateur ne garde de connexion ouverte, le service peut revenir
 à zéro instance. Une connexion du jukebox ou de la télécommande maintient une
@@ -69,8 +71,10 @@ séances ; le maximum d'instances n'est pas une garantie de continuité d'état
 pendant le remplacement d'une révision.
 
 Le piano Bluetooth et la sortie audio restent sur l'ordinateur qui ouvre le
-site HTTPS. Le conteneur léger ne comprend pas le moteur Python facultatif de
-transcription. Le fonctionnement du moteur LEGO demande un essai physique.
+site HTTPS. Le conteneur comprend Python, FFmpeg, Basic Pitch et ONNX Runtime :
+les demandes reçues par le QR utilisent donc le moteur rapide de production,
+avec le moteur embarqué dans le navigateur comme repli. Le fonctionnement du
+moteur LEGO demande toujours un essai physique.
 
 Références : [limites CPU](https://docs.cloud.google.com/run/docs/configuring/services/cpu),
 [volumes Cloud Storage](https://docs.cloud.google.com/run/docs/configuring/services/cloud-storage-volume-mounts),
