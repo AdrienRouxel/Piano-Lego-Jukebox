@@ -52,8 +52,12 @@ export class RequestPipeline extends EventTarget {
     /** Avancement, de 0 à 1. */
     this.progress = 0;
 
-    /** Identifiants déjà traités — réussis ou définitivement en échec. */
+    /** Clés de file déjà traitées — réussies ou définitivement en échec. */
     this._done = new Set();
+    /** Résultat d'une conversion, relisible par le lecteur qui l'attend. */
+    this._results = new Map();
+    /** Promesses en attente de la partition d'un morceau précis. */
+    this._waiters = new Map();
     /** Le moteur a-t-il été trouvé ? `null` tant qu'on n'a pas regardé. */
     this._engine = null;
   }
@@ -79,24 +83,54 @@ export class RequestPipeline extends EventTarget {
   }
 
   /**
+   * Attend qu'une demande possède réellement sa partition avant de la jouer.
+   * Plusieurs appelants peuvent attendre le même morceau : la transcription,
+   * elle, ne tourne toujours qu'une fois.
+   *
+   * @param {string} key clé unique de la demande dans la file
+   * @returns {Promise<{ok:boolean, status:string, message?:string}>}
+   */
+  waitFor(key) {
+    const known = this._results.get(key);
+    if (known) return Promise.resolve(known);
+
+    const waiting = new Promise((resolve) => {
+      const listeners = this._waiters.get(key) ?? [];
+      listeners.push(resolve);
+      this._waiters.set(key, listeners);
+    });
+    this.pump();
+    return waiting;
+  }
+
+  _settle(key, result) {
+    this._results.set(key, result);
+    for (const resolve of this._waiters.get(key) ?? []) resolve(result);
+    this._waiters.delete(key);
+  }
+
+  /**
    * Regarde la file et transcrit ce qui doit l'être. Appelable à volonté :
    * si une transcription tourne déjà, l'appel ne fait rien.
    */
   async pump() {
     if (this.busy) return;
 
-    const pending = this.stand.queue.find((entry) => entry.transcribe && !this._done.has(entry.id));
+    const pending = this.stand.queue.find((entry) => entry.transcribe && !this._done.has(entry.key));
     if (!pending) return;
 
     this.busy = true;
     this.current = pending;
     this.progress = 0;
+    let result = { ok: false, status: 'failed', message: 'La transcription n’a pas abouti.' };
     try {
-      await this._process(pending);
+      result = await this._process(pending);
     } catch (error) {
-      this._done.add(pending.id);
+      result = { ok: false, status: 'failed', message: error.message };
       this._say('failed', { message: error.message });
     } finally {
+      this._done.add(pending.key);
+      this._settle(pending.key, result);
       this.busy = false;
       this.current = null;
       this.progress = 0;
@@ -118,14 +152,16 @@ export class RequestPipeline extends EventTarget {
 
     if (track.midiUrl) {
       // Déjà transcrit plus tôt dans la journée : rien à refaire.
-      this._done.add(entry.id);
-      return;
+      return { ok: true, status: 'ready' };
     }
 
     if (!(await this.available())) {
-      this._done.add(entry.id);
       this._say('unavailable');
-      return;
+      return {
+        ok: false,
+        status: 'unavailable',
+        message: 'Aucun moteur de transcription n’est disponible.',
+      };
     }
 
     this._say('start', { title: entry.title });
@@ -152,8 +188,8 @@ export class RequestPipeline extends EventTarget {
     // La partition existe désormais à côté de l'extrait : la bibliothèque la
     // verra, et le morceau se jouera en « audio + partition ».
     await this.reloadLibrary();
-    this._done.add(entry.id);
     this._say('done', { id: entry.id, title: entry.title, notes: notes.length, dropped });
+    return { ok: true, status: 'ready' };
   }
 
   /** Dépose la partition à côté de l'extrait, dans la même catégorie. */

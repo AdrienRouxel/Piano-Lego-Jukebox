@@ -830,9 +830,11 @@ function enqueue(track, by, name) {
     title: track.title,
     artist: track.artist,
     category: track.category,
-    // Un extrait fraîchement téléchargé n'a pas encore de partition : le
-    // jukebox saura qu'il doit le transcrire avant de le jouer.
-    transcribe: Boolean(track.transcribe),
+    // Un extrait fraîchement téléchargé, mais aussi n'importe quel morceau
+    // audio sans partition choisi depuis le QR, doit être transcrit avant de
+    // jouer. Les demandes par lien portent déjà `transcribe`; les morceaux de
+    // la bibliothèque se reconnaissent à leurs deux URLs.
+    transcribe: Boolean(track.transcribe || (track.audioUrl && !track.midiUrl)),
     source: track.source ?? null,
     name,
     by,

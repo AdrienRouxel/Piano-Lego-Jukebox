@@ -892,6 +892,25 @@ async function ensureAudio() {
  */
 async function selectTrack(index, autoplay = false, by = requestedBy) {
   if (index < 0 || index >= library.length) return;
+  let track = library[index];
+
+  // Une demande par lien peut être cliquée pendant que Basic Pitch travaille
+  // encore. Attendre ici évite de charger fugitivement l'extrait en « audio
+  // seul » et garantit que toute demande du stand passe par sa partition.
+  const pending = !track.midiUrl && stand.queue.find((entry) => entry.id === track.id && entry.transcribe);
+  if (pending) {
+    dom.nowState.textContent = `Transcription de « ${track.title} »…`;
+    const result = await requests.waitFor(pending.key);
+    if (!result.ok) {
+      toast(`« ${track.title} » ne peut pas être joué : ${result.message}`, 'error', 7000);
+      dom.nowState.textContent = 'Partition indisponible';
+      return;
+    }
+    index = library.findIndex((item) => item.id === track.id);
+    if (index < 0) return;
+    track = library[index];
+  }
+
   requestedBy = by;
   // Changer de morceau interrompt la mise en route en cours : le chef
   // recommencera sa scène pour celui qu'on vient de choisir.
@@ -899,7 +918,6 @@ async function selectTrack(index, autoplay = false, by = requestedBy) {
   await ensureAudio();
 
   currentIndex = index;
-  const track = library[index];
   // Lancer un morceau déplie sa catégorie : on doit voir ce qui joue.
   if (collapsed.delete(track.category)) persistCollapsed();
   renderList();
@@ -1087,6 +1105,23 @@ async function playNext(auto = false) {
   if (needsRest()) {
     startRest();
     return;
+  }
+
+  // Une demande venant d'un lien ne quitte la file que lorsque son fichier
+  // MIDI existe. Sans cette barrière, un clic très rapide sur « suivant » peut
+  // gagner la course contre la transcription et lancer l'audio sans notes.
+  const waiting = stand.queue[0];
+  if (waiting?.transcribe) {
+    dom.nowState.textContent = `Transcription de « ${waiting.title} »…`;
+    const result = await requests.waitFor(waiting.key);
+
+    // La file a pu être modifiée depuis un téléphone pendant le calcul.
+    if (stand.queue[0]?.key !== waiting.key) return playNext(auto);
+    if (!result.ok) {
+      await stand.drop(waiting.key);
+      toast(`« ${waiting.title} » a été retiré de la file : ${result.message}`, 'error', 8000);
+      return playNext(auto);
+    }
   }
 
   const entry = await stand.takeNext();

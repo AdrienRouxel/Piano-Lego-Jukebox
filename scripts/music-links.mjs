@@ -65,10 +65,12 @@ export function readLink(input) {
     return { provider: 'spotify', id: match?.[1] ?? null, url: url.href };
   }
 
-  // Apple Music — l'identifiant du morceau est dans « ?i= », ou dans le chemin.
+  // Apple Music — l'identifiant du morceau est dans « ?i= », ou dans le
+  // chemin. Apple sert à la fois `/song/titre/123` et `/song/123` sans slug :
+  // les deux doivent rester des recherches exactes.
   if (host === 'music.apple.com' || host === 'itunes.apple.com') {
     const fromQuery = url.searchParams.get('i');
-    const fromPath = /\/song\/[^/]+\/(\d+)/.exec(url.pathname)?.[1] ?? null;
+    const fromPath = /\/song\/(?:[^/]+\/)?(\d+)\/?$/.exec(url.pathname)?.[1] ?? null;
     return { provider: 'apple', id: fromQuery ?? fromPath, url: url.href };
   }
 

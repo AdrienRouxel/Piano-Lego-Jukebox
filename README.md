@@ -693,9 +693,11 @@ téléphone (5G)          serveur                     navigateur du jukebox
 
 La transcription tourne **pendant que le morceau précédent joue encore** : le
 visiteur envoie son lien, écoute la fin de ce qui passe, et le sien enchaîne
-sans qu'on ait vu passer le calcul. Si le moteur de transcription n'est pas
-installé, rien ne casse : l'extrait se joue en audio seul et le piano bouge
-d'après le niveau sonore, exactement comme pour un MP3 sans partition.
+sans qu'on ait vu passer le calcul. Si son tour arrive avant la fin du calcul,
+le jukebox l'attend : une demande venue d'un lien ne démarre jamais en audio
+seul. Si aucun moteur de transcription n'est disponible ou si l'analyse échoue,
+la demande est retirée de la file avec une erreur explicite plutôt que d'être
+jouée sans notes MIDI.
 
 Ce qu'on entend alors, c'est **la partition, pas l'extrait** : un stand vient
 voir un piano jouer, pas écouter trente secondes de streaming. L'enregistrement
