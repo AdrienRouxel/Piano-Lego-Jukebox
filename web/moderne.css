@@ -25,8 +25,10 @@
   --roll-line: #52647b;
   --roll-ink: #f4f7fc;
   --roll-muted: #aebdd0;
-  --note-low: #65b5f6;
-  --note-high: #f5bd73;
+  --note-soft: #6d5dfc;
+  --note-medium: #e13ea9;
+  --note-loud: #ff623f;
+  --note-strong: #ffe66d;
 
   --accent: #2f6fed;
   --accent-hi: #4f8cff;
@@ -129,11 +131,12 @@
 }
 [data-theme="moderne"] .brand { gap: 12px; }
 [data-theme="moderne"] .brand-mark {
-  width: 40px; height: 40px; display: grid; place-items: center;
+  display: none;
+  width: 40px; height: 40px; place-items: center;
   border-radius: 12px; background: var(--ink); color: var(--panel);
 }
 [data-theme="moderne"] .brand-mark svg { width: 29px; }
-[data-theme="moderne"] .brand-logo { display: none; }
+[data-theme="moderne"] .brand-logo { display: block; margin-right: 14px; }
 [data-theme="moderne"] .brand-text strong { font: 600 19px/1.1 var(--sans); letter-spacing: -.025em; }
 [data-theme="moderne"] .brand-text small { font-size: 11px; color: var(--ink-2); }
 [data-theme="moderne"] .topbar-actions { gap: 7px; }
@@ -197,8 +200,8 @@
 [data-theme="moderne"] .waterfall-empty span { max-width: 32ch; color: var(--roll-muted); font-size: 13px; }
 [data-theme="moderne"] .waterfall-empty .btn { margin-top: 6px; border-color: var(--roll-line); color: var(--roll-ink); background: var(--roll-raised); }
 [data-theme="moderne"] .waterfall-legend { position: absolute; top: 14px; inset-inline: 16px; display: flex; gap: 14px; color: var(--roll-muted); font-size: 10px; pointer-events: none; }
-[data-theme="moderne"] .waterfall-legend span:first-child { color: var(--note-low); }
-[data-theme="moderne"] .waterfall-legend span:nth-child(2) { color: var(--note-high); }
+[data-theme="moderne"] .waterfall-legend span:first-child { color: var(--note-soft); }
+[data-theme="moderne"] .waterfall-legend span:nth-child(2) { color: var(--note-strong); }
 [data-theme="moderne"] .waterfall-legend span:last-child { margin-left: auto; }
 [data-theme="moderne"] .keyboard-score { height: clamp(64px, 11vh, 96px); padding: 0; border: 0; border-top: 2px solid var(--roll-line); border-radius: 0; }
 [data-theme="moderne"] .keyboard-score .key { top: 0; }
@@ -414,8 +417,7 @@ html[data-theme="moderne"][data-kiosk="1"] .modern-library-toggle { display: non
   [data-theme="moderne"] .brand { width: auto; }
   [data-theme="moderne"] .brand-mark { width: 32px; height: 32px; border-radius: 9px; }
   [data-theme="moderne"] .topbar-actions { width: 100%; gap: 5px; flex-wrap: wrap; }
-  [data-theme="moderne"] .hub-pill { position: absolute; top: 12px; right: 12px; }
-  [data-theme="moderne"] .hub-pill + .hub-pill { top: 30px; }
+  [data-theme="moderne"] .hub-pill { position: static; }
   [data-theme="moderne"] .topbar .btn { min-height: 34px; font-size: 11px; padding-inline: 9px; }
   [data-theme="moderne"] .topbar .btn-icon { width: 34px; height: 34px; padding: 7px; }
   [data-theme="moderne"] #btn-piano3d { width: 34px; padding: 7px; }

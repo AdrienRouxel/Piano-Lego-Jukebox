@@ -512,10 +512,12 @@ Détails de la modélisation, de l'architecture et de la vérification :
 
 ## Thèmes
 
-Trois habillages, au choix dans le tiroir de réglages (⚙︎ → **Apparence**) ; le
+Quatre habillages, au choix dans le tiroir de réglages (⚙︎ → **Apparence**) ; le
 choix est conservé d'une session à l'autre.
 
-- **Piano** — l'habillage par défaut : bois sombre, laiton, touches ivoire.
+- **Moderne** — l'habillage par défaut : fond glacier, piano 3D et notes MIDI
+  descendantes réunis dans une scène claire, avec le transport toujours visible.
+- **Piano** — bois sombre, laiton, touches ivoire.
 - **Epitech** — la charte graphique de l'école : bleu Epitech `#013afb`, fond
   clair posé sur le neutre *Drift*, triptyque *Tech* / *Together* / *Tomorrow*
   pour les états, titres en **Anton** et texte en **IBM Plex Sans**. Les angles
@@ -723,9 +725,9 @@ manœuvre laisse la table muette pour le reste de l'après-midi.
 Le mode ne se rétablit pas au rechargement de la page : le plein écran exige un
 geste, et une borne à moitié en mode borne serait pire que pas de borne.
 
-### Deux profils : portes ouvertes, salon
+### Trois profils : portes ouvertes, salon, démo
 
-Les deux situations n'ont presque rien en commun, et c'est ce qui justifie un
+Ces situations n'ont presque rien en commun, et c'est ce qui justifie un
 profil plutôt qu'un réglage de plus.
 
 | | Portes ouvertes | Salon |
@@ -736,6 +738,9 @@ profil plutôt qu'un réglage de plus.
 | Le bruit | Une salle de cours | Un hall d'exposition |
 | L'écran | Support de conversation | Affiche qu'on doit lire à dix mètres |
 | Le moteur | Deux heures cumulées | Quarante heures dans la semaine |
+
+Le profil *Démo* conserve le pilotage direct et masque entièrement la carte du
+code QR. Il sert lorsqu'aucune télécommande visiteur ne doit être proposée.
 
 Le profil *Salon* allume donc quatre choses que les portes ouvertes n'exigent
 pas — chacune reste débrayable :
@@ -755,7 +760,7 @@ pas — chacune reste débrayable :
 - **Les prénoms éteints.** Personne ne surveillant l'écran en permanence, on
   n'y affiche plus de texte saisi par le public.
 
-Dans les deux profils, l'écran ne s'éteint jamais : le verrou d'activation
+Dans les trois profils, l'écran ne s'éteint jamais : le verrou d'activation
 (*Screen Wake Lock*) interdit la mise en veille, et se redemande à chaque retour
 au premier plan — le navigateur le relâche dès que l'onglet passe derrière.
 
@@ -769,25 +774,20 @@ dix minutes de mise au point. Trois garde-fous, tous vérifiables :
   recharge. Lecture annoncée mais position figée depuis dix secondes : on passe
   au morceau suivant. Il ne fait rien hors du mode borne, un rechargement
   automatique pendant un réglage étant une agression.
-- **Les jetons du stand survivent au redémarrage.** Le code porté par le code QR
-  et le jeton de pilotage sont rangés dans `.stand-session.json` (ignoré par
-  git). Sans cela, un serveur relancé le deuxième jour rendrait caduc le
-  chevalet imprimé la veille, et les visiteurs scanneraient dans le vide. Les
-  variables `STAND_CODE` et `STAND_OPERATOR` restent prioritaires.
+- **Le code du stand survit au redémarrage.** Il est rangé dans
+  `.stand-session.json` (ignoré par git). Sans cela, un serveur relancé le
+  deuxième jour rendrait caduc le chevalet imprimé la veille, et les visiteurs
+  scanneraient dans le vide. La variable `STAND_CODE` reste prioritaire.
 - **Le jukebox revérifie l'identité du stand** à chaque reconnexion du flux
   d'événements : adresse, code, droits. Un serveur qui repart ailleurs est suivi
   sans qu'on ait à recharger la page.
 
-Et deux pannes qui ne se voient pas, désormais dites en clair sur la scène :
+Une panne qui ne se voit pas est dite en clair sur la scène :
 
 - **Piles trop faibles.** Sous 8 %, un moteur Powered Up ne développe plus assez
   de couple pour entraîner l'arbre à cames : il cale et bourdonne. Le jukebox le
   coupe franchement et l'écrit, plutôt que de laisser un piano qui grogne devant
   les visiteurs. Le son, lui, continue.
-- **Jeton de pilotage manquant.** Sans lui, les demandes des visiteurs
-  s'accumulent sans jamais être jouées — une panne parfaitement silencieuse, qui
-  peut durer une journée entière. Un bandeau rouge le dit sur la scène, et le
-  jeton se colle dans les réglages sans toucher à l'adresse.
 
 ### Deux pianos
 
@@ -914,11 +914,9 @@ exactement ce qui s'ouvre.
   demande n'est acceptée. Le visiteur ne le voit jamais, il scanne ; il tient
   simplement à distance ceux qui trouveraient l'adresse sans être devant le
   piano.
-- **Le jeton de pilotage** protège tout ce qui commande le stand — passer au
-  morceau suivant, vider la file, écrire une partition dans `tracks/`. Il est
-  affiché au lancement du serveur, et se donne une fois au jukebox dans son
-  adresse : `…/?op=…`. Quand le serveur tourne sur la machine du stand sans
-  proxy, la boucle locale suffit et le jeton n'est pas demandé.
+- **La page du jukebox** est réservée aux administrateurs et pilote directement
+  le stand : passer au morceau suivant, vider la file, écrire une partition
+  dans `tracks/`.
 - **Une limitation de débit** par adresse IP, et trois demandes simultanées au
   plus par téléphone. Elle vise les visiteurs, et eux seuls : elle ne s'applique
   ni quand le serveur n'écoute que la boucle locale — il n'y a alors personne
@@ -928,11 +926,11 @@ exactement ce qui s'ouvre.
   quatorze caractères — mais restent du texte public affiché sur un grand
   écran. Le réglage qui les affiche se décoche.
 
-Les deux jetons se fixent au lancement si l'on veut les retrouver d'un jour à
+Le code du stand se fixe au lancement si l'on veut le retrouver d'un jour à
 l'autre :
 
 ```bash
-PUBLIC_URL=https://piano.epitech.example STAND_CODE=JPO26 STAND_OPERATOR=… npm start
+PUBLIC_URL=https://piano.epitech.example STAND_CODE=JPO26 npm start
 ```
 
 ---

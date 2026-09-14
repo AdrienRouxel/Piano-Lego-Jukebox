@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { indexNotes, visibleNotes, noteBounds } from '../web/js/music/waterfall.js';
+import { indexNotes, visibleNotes, noteBounds, velocityColor } from '../web/js/music/waterfall.js';
 
 const held = { midi: 48, time: 0, duration: 12 };
 const repeated = { midi: 60, time: 5, duration: .5 };
@@ -18,4 +18,10 @@ assert.deepEqual(noteBounds(next, 7, 400), { top: 300, bottom: 400 }, 'Le bord a
 assert.deepEqual(noteBounds(next, 7.5, 400), { top: 350, bottom: 400 }, 'Une note tenue se résorbe au contact du clavier');
 assert.deepEqual(indexNotes([]), []);
 assert.deepEqual(indexNotes([{ midi: 60, time: NaN, duration: 1 }, { midi: 60, time: 0, duration: -1 }]), []);
-console.log('✓ Notes descendantes : anticipation, accords, notes tenues, reprise, fin et mode sans mouvement');
+assert.equal(velocityColor(0), '#6d5dfc', 'Une note douce est violette');
+assert.equal(velocityColor(.48), '#e13ea9', 'Une note moyenne est rose');
+assert.equal(velocityColor(.76), '#ff623f', 'Une note appuyée est orange');
+assert.equal(velocityColor(1), '#ffe66d', 'Une note forte est jaune');
+assert.equal(velocityColor(-1), '#6d5dfc', 'La vélocité est bornée en bas');
+assert.equal(velocityColor(2), '#ffe66d', 'La vélocité est bornée en haut');
+console.log('✓ Notes descendantes : anticipation, vélocité colorée, accords, notes tenues, reprise, fin et mode sans mouvement');

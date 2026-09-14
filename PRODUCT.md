@@ -47,7 +47,7 @@ raison d'être le jour où il affiche un chiffre décoratif.
 
 ## Operating Context
 
-**Trois scènes, qui ne demandent pas la même interface :**
+**Quatre scènes, qui ne demandent pas la même interface :**
 
 - *Le bureau* — le démonstrateur devant l'écran, à un mètre. Densité, biblio-
   thèque parcourue, réglages ouverts, geek mode déplié.
@@ -57,6 +57,8 @@ raison d'être le jour où il affiche un chiffre décoratif.
   exposants, le stand parfois vide. L'écran devient une affiche à lire à dix
   mètres, un écran d'appel prend le relais après une minute d'inactivité, les
   réglages se verrouillent, le moteur s'accorde des pauses.
+- *La démo* — un administrateur pilote directement le jukebox, sans proposer
+  de télécommande aux visiteurs ; la carte du code QR disparaît de la scène.
 
 Le mode borne (touche `S`) est la bascule explicite entre le registre dense et le
 registre monumental : plein écran, bibliothèque masquée, tout grossit, et la
@@ -84,25 +86,25 @@ un contexte sécurisé. Les visiteurs, eux, arrivent sur leur forfait mobile.
   jouées) et le *modèle LEGO* (25 touches, animées par une simulation de l'arbre
   à cames). Le second est un aperçu fidèle même sans hub connecté.
 - **Terminologie** : hub, arbre à cames, mode borne, mode partition, geek mode,
-  télécommande, demandes, file, profil (portes ouvertes / salon), jeton de
-  pilotage, code du stand.
+  télécommande, demandes, file, profil (portes ouvertes / salon / démo), code
+  du stand.
 - **L'écran ne s'éteint jamais** en fonctionnement (Screen Wake Lock).
 - Les prénoms saisis par les visiteurs sont du texte public filtré (lettres,
   quatorze caractères) affiché sur grand écran ; le réglage se décoche.
 
 ## Brand Commitments
 
-- **Charte Epitech**, désormais le thème par défaut de l'application : bleu
+- **Charte Epitech**, disponible dans tous les habillages de marque : bleu
   `#013afb`, titres en **Anton**, texte en **IBM Plex Sans**, angles francs,
   grille « blueprint », underscore en ponctuation de titre, triptyque
   *Tech / Together / Tomorrow* pour les états. Le logo est fourni
   (`web/assets/brand/epitech-logo.png`).
-- **Quatre thèmes coexistent et doivent rester cohérents entre eux** : *Epitech*
-  (défaut), *Piano* (bois sombre, laiton, ivoire), *LEGO* (plaque à tenons,
-  bandeau rouge/orange/jaune/vert/bleu, une couleur de brique par demi-ton) et
-  *Moderne* (fond glacier, scène contenue dans la fenêtre, modèle 3D à gauche,
-  notes MIDI descendantes au-dessus du clavier à droite, transport toujours
-  visible et bibliothèque à la demande ; scène empilée sur téléphone).
+- **Quatre thèmes coexistent et doivent rester cohérents entre eux** : *Moderne*
+  (défaut : fond glacier, modèle 3D à gauche, notes MIDI descendantes à droite),
+  *Epitech* (charte de l'école), *Piano* (bois sombre, laiton, ivoire) et *LEGO*
+  (plaque à tenons, bandeau multicolore, une couleur de brique par demi-ton).
+  Dans *Moderne*, le transport reste visible et la bibliothèque s'ouvre à la
+  demande ; la scène s'empile sur téléphone.
 - **Aucune marque LEGO n'est reproduite** — seulement la palette et la matière du
   plastique. Cette limite est délibérée et se maintient.
 - **Voix** : française, précise, sans jargon commercial. Elle nomme les

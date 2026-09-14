@@ -149,7 +149,7 @@ and by the difference between an outline and a fill. Two visual rejections are
 confirmed by the build itself and stated in the source: the dark player card with
 a square cover art and a transport bar, and its opposite, the light dashboard of
 white rounded cards. Both are the application's two other themes, still shipped
-and still coherent in their own worlds; the Epitech default refuses both.
+and still coherent in their own worlds; the Epitech theme refuses both.
 
 Scale is a shipping requirement, not a preference: the screen is read at 3 m at an
 open day and 10 m at a trade show. The kiosk mode (`data-kiosk="1"`) does not
@@ -487,9 +487,11 @@ du document.
 Les notes MIDI descendent vers leurs touches sur un horizon de quatre secondes,
 avec une hauteur proportionnelle à leur durée. Leur position lit le temps audio
 du lecteur : lecture, pause et déplacement dans le morceau restent synchronisés.
-Les notes graves (`midi < 60`) sont bleues `#65b5f6`, les aiguës ambrées `#f5bd73` ;
-la légende et l'allumage du clavier reprennent ces deux couleurs. Les couloirs
-s'alignent sur le clavier de 88 notes, sans particules décoratives.
+La vélocité MIDI pilote une échelle continue : violet `#6d5dfc` pour une frappe
+douce, rose `#e13ea9`, orange `#ff623f`, puis jaune `#ffe66d` pour une frappe
+forte. L'opacité des notes à venir et le halo au contact du clavier renforcent
+aussi cette intensité ; la touche reprend la couleur de la note qui sonne. Les
+couloirs s'alignent sur le clavier de 88 notes, sans particules décoratives.
 
 Avec `prefers-reduced-motion: reduce`, les notes actuelles deviennent des repères
 fixes au bord du clavier, sans descente continue. Les états sans morceau, en

@@ -272,13 +272,13 @@ function randomToken(length, alphabet = CODE_ALPHABET) {
 }
 
 /**
- * Les deux jetons survivent au redémarrage du serveur.
+ * Le code du stand survit au redémarrage du serveur.
  *
  * C'est indispensable dès qu'on tient un stand plusieurs jours : un code tiré
  * au hasard à chaque lancement rendrait caduc le code QR imprimé la veille, et
- * les visiteurs scanneraient un code que le serveur refuse. On les range donc
- * dans un fichier local, ignoré par git. Les variables d'environnement, elles,
- * restent prioritaires — c'est la façon de fixer un code pour de bon.
+ * les visiteurs scanneraient un code que le serveur refuse. On le range donc
+ * dans un fichier local, ignoré par git. La variable d'environnement reste
+ * prioritaire — c'est la façon de fixer un code pour de bon.
  */
 const SESSION_FILE = path.join(ROOT, '.stand-session.json');
 
@@ -287,10 +287,10 @@ function loadSession() {
     const saved = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
     return {
       code: typeof saved.code === 'string' ? saved.code : null,
-      operator: typeof saved.operator === 'string' ? saved.operator : null,
+      legacyControlToken: Object.hasOwn(saved, 'operator'),
     };
   } catch {
-    return { code: null, operator: null };
+    return { code: null, legacyControlToken: false };
   }
 }
 
@@ -298,14 +298,12 @@ const session = loadSession();
 
 /** Code porté par le code QR. */
 const STAND_CODE = (process.env.STAND_CODE ?? '').trim().toUpperCase() || session.code || randomToken(5);
-/** Jeton de pilotage, à passer une fois au jukebox : `…/?op=…`. */
-const STAND_OPERATOR = (process.env.STAND_OPERATOR ?? '').trim() || session.operator || randomToken(12);
 
-if (session.code !== STAND_CODE || session.operator !== STAND_OPERATOR) {
+if (session.code !== STAND_CODE || session.legacyControlToken) {
   try {
-    fs.writeFileSync(SESSION_FILE, JSON.stringify({ code: STAND_CODE, operator: STAND_OPERATOR }, null, 2));
+    fs.writeFileSync(SESSION_FILE, JSON.stringify({ code: STAND_CODE }, null, 2));
   } catch {
-    // Disque en lecture seule (conteneur) : on continue avec des jetons du jour.
+    // Disque en lecture seule (conteneur) : on continue avec le code du jour.
   }
 }
 
@@ -366,21 +364,14 @@ function isShared(req) {
 }
 
 /**
- * Cadence maximale d'un même visiteur. Deux exemptions, et aucune n'ouvre de
- * brèche :
+ * Cadence maximale d'un même visiteur.
  *
- *   • tant que le serveur n'écoute que la boucle locale, il n'y a personne
- *     d'autre que soi de l'autre côté : se limiter reviendrait à se limiter
- *     soi-même ;
- *   • le poste du stand publie ce qu'il joue toutes les deux secondes, soit
- *     trente requêtes par minute à lui seul. Comptées avec le reste, elles
- *     épuisaient son propre quota, et trois demandes d'affilée suffisaient à
- *     déclencher le refus. Le jeton de pilotage l'identifie : un visiteur ne
- *     passe pas par là.
+ * Tant que le serveur n'écoute que la boucle locale, il n'y a personne d'autre
+ * que soi de l'autre côté : se limiter reviendrait à se limiter soi-même. Les
+ * routes d'administration ne passent pas par cette fonction.
  */
-function rateLimited(req, body) {
+function rateLimited(req) {
   if (!isShared(req)) return false;
-  if (isOperator(req, body)) return false;
 
   const key = clientAddress(req);
   const now = Date.now();
@@ -398,11 +389,9 @@ function rateLimited(req, body) {
 }
 
 /**
- * Compare deux jetons en temps constant : une comparaison `===` classique
+ * Compare deux codes en temps constant : une comparaison `===` classique
  * s'arrête dès le premier octet différent, ce qui laisse fuir la longueur du
- * préfixe correct dans le temps de réponse. Sur un jeton de pilotage exposé
- * publiquement (stand relié à un domaine), c'est la porte qu'on ne veut pas
- * laisser entrebâillée.
+ * préfixe correct dans le temps de réponse.
  */
 function safeEqual(a, b) {
   const bufA = Buffer.from(String(a), 'utf8');
@@ -420,19 +409,6 @@ function safeEqual(a, b) {
 function hasStandCode(req, url, body) {
   const given = String(body?.code ?? url.searchParams.get('c') ?? '').trim().toUpperCase();
   return safeEqual(given, STAND_CODE);
-}
-
-/**
- * Droit de piloter le stand. Le jeton l'accorde toujours ; sinon on ne fait
- * confiance à la boucle locale que si le serveur n'est ni publié ni derrière
- * un proxy — car derrière un proxy inverse, *tout le monde* arrive de 127.0.0.1.
- */
-function isOperator(req, body) {
-  const given = String(body?.operator ?? req.headers['x-stand-operator'] ?? '');
-  if (given && safeEqual(given, STAND_OPERATOR)) return true;
-  if (PUBLIC_URL || req.headers['x-forwarded-for'] || req.headers['x-forwarded-host']) return false;
-  const address = req.socket.remoteAddress ?? '';
-  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
 }
 
 /* --- Adresse publique ---------------------------------------------- */
@@ -946,17 +922,7 @@ async function handleLinkRequest(req, res, body) {
 }
 
 async function handleTrackUpload(req, res, url) {
-  // Cette route écrit dans `tracks/`. Tant que le serveur ne sortait pas de
-  // localhost, c'était sans conséquence ; publié sur un domaine, c'est une
-  // porte ouverte sur le disque. Elle est donc réservée au poste du stand.
-  if (!isOperator(req, {})) {
-    sendJson(res, 403, { error: 'Écriture réservée au poste du stand.' });
-    return;
-  }
-  if (rateLimited(req)) {
-    sendJson(res, 429, { error: 'Trop d’envois d’un coup.' });
-    return;
-  }
+  // Cette route est appelée depuis la page d'administration du jukebox.
 
   const category = safeSegment(url.searchParams.get('category'), 60);
   const name = safeSegment(url.searchParams.get('name'), 120);
@@ -1006,20 +972,12 @@ async function handleTrackUpload(req, res, url) {
  *
  * DELETE /api/tracks?category=Demandes&name=…
  *
- * Deux verrous, et aucun n'est de trop pour une route qui efface des fichiers :
- * le poste du stand seul y a droit, et seule la catégorie des demandes est
- * concernée. Le reste de `tracks/` est le fonds de la bibliothèque, déposé à la
- * main : il ne s'efface pas depuis un navigateur.
+ * Seule la catégorie des demandes est concernée. Le reste de `tracks/` est le
+ * fonds de la bibliothèque, déposé à la main : il ne s'efface pas depuis un
+ * navigateur.
  */
 async function handleTrackDelete(req, res, url) {
-  if (!isOperator(req, {})) {
-    sendJson(res, 403, { error: 'Suppression réservée au poste du stand.' });
-    return;
-  }
-  if (rateLimited(req)) {
-    sendJson(res, 429, { error: 'Trop de suppressions d’un coup.' });
-    return;
-  }
+  // Cette route est appelée depuis la page d'administration du jukebox.
 
   const category = safeSegment(url.searchParams.get('category'), 60);
   const name = safeSegment(url.searchParams.get('name'), 120);
@@ -1082,18 +1040,14 @@ async function handleStandPost(req, res, pathname, url) {
     return;
   }
 
-  // Le corps est lu d'abord : le jeton de pilotage peut y être, et c'est lui
-  // qui dit si l'appelant est le poste du stand ou un visiteur. La lecture est
-  // bornée à quelques kilo-octets, elle ne coûte rien.
-  if (rateLimited(req, body)) {
-    sendJson(res, 429, { error: 'Trop de demandes d’un coup. Respire, et réessaie dans un instant.' });
-    return;
-  }
-
   /* --- Ce qu'un visiteur a le droit de faire --- */
 
   if (pathname === '/api/stand/queue' || pathname === '/api/stand/cheer' || pathname === '/api/stand/link') {
-    if (!hasStandCode(req, url, body) && !isOperator(req, body)) {
+    if (rateLimited(req)) {
+      sendJson(res, 429, { error: 'Trop de demandes d’un coup. Respire, et réessaie dans un instant.' });
+      return;
+    }
+    if (!hasStandCode(req, url, body)) {
       sendJson(res, 403, { error: 'Code du stand absent ou périmé. Rescanne le code QR affiché près du piano.' });
       return;
     }
@@ -1127,16 +1081,10 @@ async function handleStandPost(req, res, pathname, url) {
     return;
   }
 
-  /* --- Ce qui pilote le stand : réservé au jukebox --- */
-
-  if (!isOperator(req, body)) {
-    sendJson(res, 403, { error: 'Pilotage réservé au poste du stand.' });
-    return;
-  }
+  /* --- Ce qui pilote le stand : page d'administration --- */
 
   /**
-   * L'interrupteur « Mode local » des réglages. Réservé au poste du stand :
-   * personne d'autre ne doit pouvoir ouvrir la machine sur le réseau.
+   * L'interrupteur « Mode local » des réglages.
    */
   if (pathname === '/api/stand/local') {
     const wanted = Boolean(body.enabled);
@@ -1361,9 +1309,6 @@ async function handleRequest(req, res) {
         remoteUrl: url2,
         code: STAND_CODE,
         local: localMode(),
-        // Le jukebox est-il reconnu comme poste de pilotage ? Sinon il lui
-        // manque le jeton, et l'interface le dira au lieu d'échouer en silence.
-        operator: isOperator(req, {}),
         ...standState(),
       });
       return;
@@ -1477,7 +1422,5 @@ server.listen(PORT, HOST, () => {
     console.log('        derrière un tunnel (cloudflared, ngrok…).');
   }
   console.log(`      Code du stand : ${STAND_CODE}   (déjà inclus dans le code QR)`);
-  console.log(`      Jeton de pilotage : ${STAND_OPERATOR}`);
-  console.log(`      Depuis une autre machine que le serveur, ouvre le jukebox avec  ?op=${STAND_OPERATOR}`);
   console.log('');
 });

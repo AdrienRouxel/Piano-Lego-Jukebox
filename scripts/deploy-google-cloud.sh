@@ -29,27 +29,39 @@ docker build -t "$PIANO_IMAGE" .
 docker push "$PIANO_IMAGE"
 
 # Fichier privé, exclu de l'image et de tout envoi des sources.
-# Réutiliser les mêmes jetons lors des déploiements suivants.
+# Réutiliser le même code du stand lors des déploiements suivants.
 if [[ ! -f .env.piano-cloud.json ]]; then
   if gcloud run services describe "$PIANO_SERVICE" --region="$PIANO_REGION" --project="$PIANO_PROJECT" --format=json > /tmp/piano-existing-service.json 2>/dev/null; then
     python3 - <<'PY'
 import json, os
 s = json.load(open('/tmp/piano-existing-service.json'))
 env = {e['name']: e['value'] for e in s['spec']['template']['spec']['containers'][0].get('env', []) if 'value' in e}
-assert env.get('STAND_OPERATOR') and env.get('STAND_CODE'), 'Jetons existants introuvables : arrêt pour éviter leur remplacement.'
+assert env.get('STAND_CODE'), 'Code du stand existant introuvable : arrêt pour éviter son remplacement.'
 with open('.env.piano-cloud.json', 'x') as f:
     os.chmod(f.name, 0o600)
-    json.dump(env, f)
+    json.dump({'STAND_CODE': env['STAND_CODE']}, f)
 PY
   else
     python3 - <<'PY'
 import json, secrets, os
 with open('.env.piano-cloud.json', 'x') as f:
     os.chmod(f.name, 0o600)
-    json.dump({'STAND_OPERATOR': secrets.token_urlsafe(32), 'STAND_CODE': secrets.token_hex(4).upper()}, f)
+    json.dump({'STAND_CODE': secrets.token_hex(4).upper()}, f)
 PY
   fi
 fi
+
+# Les anciennes versions conservaient aussi STAND_OPERATOR. Le serveur n'en a
+# plus besoin : ne garder que le code visiteur dans le fichier transmis.
+python3 - <<'PY'
+import json, os
+with open('.env.piano-cloud.json') as f:
+    env = json.load(f)
+assert env.get('STAND_CODE'), 'Code du stand introuvable.'
+with open('.env.piano-cloud.json', 'w') as f:
+    os.chmod(f.name, 0o600)
+    json.dump({'STAND_CODE': env['STAND_CODE']}, f)
+PY
 
 gcloud run deploy "$PIANO_SERVICE" --project="$PIANO_PROJECT" --region="$PIANO_REGION" \
   --image="$PIANO_IMAGE" --service-account="$PIANO_ACCOUNT" \

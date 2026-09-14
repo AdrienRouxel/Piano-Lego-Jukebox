@@ -17,11 +17,11 @@
     // en passant par le thème par défaut. Même clé que les réglages.
     try {
       const stored = JSON.parse(localStorage.getItem('lego-piano-jukebox/settings') ?? '{}');
-      // « epitech » est désormais le thème par défaut ; « piano » redevient un
-      // choix comme les autres, et n'hérite donc plus du :root sans attribut.
+      // « moderne » est le thème par défaut ; les autres thèmes restent
+      // disponibles et sont restaurés lorsqu'un choix a été enregistré.
       document.documentElement.dataset.theme =
-        ['piano', 'lego', 'moderne'].includes(stored.theme) ? stored.theme : 'epitech';
-    } catch { document.documentElement.dataset.theme = 'epitech'; }
+        ['piano', 'epitech', 'lego', 'moderne'].includes(stored.theme) ? stored.theme : 'moderne';
+    } catch { document.documentElement.dataset.theme = 'moderne'; }
   </script>
 </head>
 <body>
@@ -34,8 +34,8 @@
       </span>
       <img class="brand-logo" src="assets/brand/epitech-logo.png" alt="Epitech" width="113" height="28" />
       <span class="brand-text">
-        <strong>Jukebox</strong>
-        <small>LEGO&nbsp;Ideas Grand&nbsp;Piano 21323</small>
+        <strong>Jukebox Epitech</strong>
+        <small>LEGO GRAND PIANO SUPERVISOR</small>
       </span>
     </div>
 
@@ -132,7 +132,7 @@
             <span>Choisis un morceau pour voir les notes descendre vers le clavier.</span>
             <button class="btn" id="btn-waterfall-library" type="button">Choisir un morceau</button>
           </div>
-          <div class="waterfall-legend" aria-hidden="true"><span>Graves</span><span>Aigus</span><span>Notes MIDI · 4 s à venir</span></div>
+          <div class="waterfall-legend" aria-hidden="true"><span>Doux</span><span>Fort</span><span>Vélocité MIDI · 4 s à venir</span></div>
         </div>
         <div class="keyboard keyboard-score" id="keyboard-score" aria-hidden="true"></div>
         <p class="playable-hint" id="playable-hint" hidden>
@@ -276,7 +276,7 @@
               <span>Piano</span>
             </label>
             <label>
-              <input type="radio" name="theme" value="epitech" checked />
+              <input type="radio" name="theme" value="epitech" />
               <span>Epitech</span>
             </label>
             <label>
@@ -284,7 +284,7 @@
               <span>LEGO</span>
             </label>
             <label>
-              <input type="radio" name="theme" value="moderne" />
+              <input type="radio" name="theme" value="moderne" checked />
               <span>Moderne</span>
             </label>
           </div>
@@ -401,8 +401,12 @@
               <input type="radio" name="venue" value="salon" />
               <span>Salon</span>
             </label>
+            <label>
+              <input type="radio" name="venue" value="demo" />
+              <span>Démo</span>
+            </label>
           </div>
-          <p class="hint"><strong>Portes ouvertes</strong>&nbsp;: une demi-journée, une équipe derrière la table, on montre et on explique. <strong>Salon</strong>&nbsp;: plusieurs jours dans un hall bruyant, le stand parfois sans personne — l’écran d’appel s’allume, l’interface se verrouille, le moteur souffle, et l’écran ne s’éteint jamais.</p>
+          <p class="hint"><strong>Portes ouvertes</strong>&nbsp;: une demi-journée avec une équipe derrière la table. <strong>Salon</strong>&nbsp;: plusieurs jours dans un hall, avec écran d’appel et pauses moteur. <strong>Démo</strong>&nbsp;: pilotage direct, sans afficher la carte du code QR.</p>
 
           <label class="switch">
             <input type="checkbox" id="set-kiosk" />
@@ -505,14 +509,6 @@
           <p class="hint" id="local-hint">Ouvre le serveur sur l’adresse Wi‑Fi de cette machine, le temps de la démonstration&nbsp;: le code QR mène alors au téléphone posé à côté, sans tunnel ni nom de domaine. Le jukebox, lui, reste sur <code>localhost</code> et garde sa liaison Bluetooth. À n’allumer que sur un réseau de confiance&nbsp;— le dossier des morceaux et toute l’interface deviennent lisibles par le réseau.</p>
 
           <div class="stand-status" id="stand-status"></div>
-
-          <label class="field" id="operator-field" hidden>
-            <span class="field-label">Jeton de pilotage <small>affiché au lancement du serveur</small></span>
-            <span class="field-row">
-              <input type="text" id="operator-token" placeholder="ABCD1234EFGH" spellcheck="false" autocomplete="off" />
-              <button class="btn btn-ghost" id="btn-operator" type="button">Appliquer</button>
-            </span>
-          </label>
 
           <div class="row">
             <button class="btn btn-ghost" id="btn-queue-clear" type="button">Vider la file</button>

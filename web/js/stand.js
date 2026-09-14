@@ -11,43 +11,15 @@
  * publie ce que le jukebox est en train de jouer, relaie les applaudissements,
  * et fabrique le code QR qui mène à la télécommande.
  *
- * Deux jetons circulent, et il ne faut pas les confondre :
- *   • le **code du stand** voyage dans le code QR ; c'est ce qui autorise un
- *     téléphone à déposer une demande. Le serveur nous le donne pour affichage ;
- *   • le **jeton de pilotage** autorise à passer au morceau suivant ou à vider
- *     la file. Le jukebox le reçoit une fois dans son adresse (`?op=…`) et le
- *     garde ; quand le serveur tourne sur la machine du stand, la boucle locale
- *     suffit et le jeton n'est même pas nécessaire.
+ * Le code du stand voyage dans le code QR : c'est ce qui autorise un téléphone
+ * à déposer une demande. La page du jukebox est réservée aux administrateurs
+ * et n'a pas de second jeton à présenter.
  */
 
 import { qrSvg } from './qrcode.js';
 
 /** Cadence de publication de la position de lecture, en millisecondes. */
 const PUBLISH_INTERVAL = 2000;
-const OPERATOR_KEY = 'lego-piano-jukebox/operator';
-
-/**
- * Récupère le jeton de pilotage passé dans l'adresse, le range, et le retire
- * de la barre d'adresse — un jeton qui reste affiché finit par être recopié.
- */
-function claimOperatorToken() {
-  let token = null;
-  try {
-    token = localStorage.getItem(OPERATOR_KEY);
-  } catch { /* navigation privée */ }
-
-  const url = new URL(window.location.href);
-  const given = url.searchParams.get('op');
-  if (given) {
-    token = given;
-    try {
-      localStorage.setItem(OPERATOR_KEY, token);
-    } catch { /* tant pis : valable pour cette page seulement */ }
-    url.searchParams.delete('op');
-    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-  }
-  return token;
-}
 
 export class Stand extends EventTarget {
   constructor() {
@@ -64,8 +36,6 @@ export class Stand extends EventTarget {
      * @type {{enabled:boolean, pinned:boolean, address:string|null, port:number, supported:boolean}}
      */
     this.local = { enabled: false, pinned: false, address: null, port: 0, supported: false };
-    /** Vrai si ce poste a le droit de piloter la file. */
-    this.operator = false;
     /** @type {Array<{key:string, id:string, title:string, artist:string|null, name:string|null}>} */
     this.queue = [];
     /** Bilan du jour, tel que le serveur le compte. */
@@ -73,16 +43,15 @@ export class Stand extends EventTarget {
     this.requested = 0;
     this.cheers = 0;
 
-    this._token = claimOperatorToken();
     this._source = null;
     this._lastPublish = 0;
     this._nowSignature = '';
     this._queueSignature = '';
   }
 
-  /** En-têtes qui prouvent au serveur que l'appel vient du poste du stand. */
+  /** En-têtes des routes de commande. */
   get controlHeaders() {
-    return this._token ? { 'x-stand-operator': this._token } : {};
+    return {};
   }
 
   /** Idem, pour les routes qui parlent JSON. */
@@ -99,11 +68,11 @@ export class Stand extends EventTarget {
   }
 
   /**
-   * Relit l'identité du stand : adresse de la télécommande, code, droits.
+   * Relit l'identité du stand : adresse de la télécommande, code et mode local.
    *
    * Ce n'est pas qu'une formalité de démarrage. Un serveur qui redémarre — et
    * sur un salon de plusieurs jours, il redémarre — peut repartir avec une
-   * autre adresse ou d'autres droits. Sans cette relecture, le jukebox
+   * autre adresse. Sans cette relecture, le jukebox
    * continuerait d'afficher un code QR que le serveur ne reconnaît plus, et
    * les visiteurs scanneraient dans le vide.
    */
@@ -112,8 +81,7 @@ export class Stand extends EventTarget {
       const response = await fetch('/api/stand', { headers: this.controlHeaders });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      const changed =
-        data.remoteUrl !== this.remoteUrl || data.code !== this.code || Boolean(data.operator) !== this.operator;
+      const changed = data.remoteUrl !== this.remoteUrl || data.code !== this.code;
       this._takeIdentity(data);
       this._absorb(data);
       if (changed) this.dispatchEvent(new CustomEvent('identity', { detail: { code: this.code } }));
@@ -125,11 +93,10 @@ export class Stand extends EventTarget {
     }
   }
 
-  /** Range ce que le serveur dit de lui-même : adresse, code, droits, mode local. */
+  /** Range ce que le serveur dit de lui-même : adresse, code et mode local. */
   _takeIdentity(data) {
     this.remoteUrl = data.remoteUrl ?? null;
     if (data.code !== undefined) this.code = data.code ?? null;
-    if (data.operator !== undefined) this.operator = Boolean(data.operator);
     if (data.local) this.local = data.local;
     this.available = Boolean(this.remoteUrl);
   }
@@ -159,21 +126,6 @@ export class Stand extends EventTarget {
     } catch {
       return { ok: false, error: 'Le serveur n’a pas répondu.' };
     }
-  }
-
-  /**
-   * Donne au jukebox le jeton de pilotage, sans passer par l'adresse.
-   * @returns {Promise<boolean>} vrai si le serveur l'a reconnu
-   */
-  async useOperatorToken(token) {
-    const trimmed = String(token ?? '').trim();
-    this._token = trimmed || null;
-    try {
-      if (trimmed) localStorage.setItem(OPERATOR_KEY, trimmed);
-      else localStorage.removeItem(OPERATOR_KEY);
-    } catch { /* navigation privée */ }
-    await this.refresh();
-    return this.operator;
   }
 
   _listen() {
@@ -251,7 +203,6 @@ export class Stand extends EventTarget {
    * Limité en cadence : la position n'a pas besoin d'être au dixième de seconde.
    */
   publish(now, { force = false } = {}) {
-    if (!this.available && !this.operator) return;
     const stamp = performance.now();
     const signature = `${now?.id ?? ''}|${now?.state ?? ''}`;
     const changed = signature !== this._nowSignature;

@@ -351,10 +351,10 @@ Où trouver des MIDI : [Mutopia](https://www.mutopiaproject.org/),
 
 | Section | À quoi ça sert |
 |---|---|
-| **Apparence** | Bascule entre l'habillage *Piano* et l'habillage *Epitech*. |
+| **Apparence** | Bascule entre les habillages *Moderne* (par défaut), *Piano*, *Epitech* et *LEGO*. |
 | **Mouvement des touches** | Les réglages de la chorégraphie : puissances, avance, accents, sensibilité, freinage, démarrage progressif, sens de rotation. C'est là qu'on passe du temps. |
 | **Mise en route** | Facultatif : un chef d'orchestre demande au piano s'il est prêt avant chaque morceau. Un clic passe l'introduction. |
-| **Mode borne** | Le profil (portes ouvertes ou salon), le passage en borne, la reprise automatique, l'écran d'appel et son texte, le clavier jouable, l'affichage des prénoms, le rendu sonore, le déclenchement par le capteur, le ménagement du moteur, le verrouillage, et l'état de la télécommande des visiteurs. |
+| **Mode borne** | Le profil (portes ouvertes, salon ou démo), le passage en borne, la reprise automatique, l'écran d'appel et son texte, le clavier jouable, l'affichage des prénoms, le rendu sonore, le déclenchement par le capteur, le ménagement du moteur, le verrouillage, et l'état de la télécommande des visiteurs. |
 | **Deux pianos** | La connexion d'un second modèle, et la répartition de la partition entre les deux. |
 | **Bilan du stand** | Ce que la borne a joué depuis son démarrage, copiable ou enregistrable. |
 | **Démonstration** | Le *Geek mode* : un bandeau de télémétrie en bas de l'écran. Tout y est mesuré en direct. |
@@ -386,8 +386,8 @@ démonstration à deux personnes autour d'un bureau, tout ce qui précède suffi
    | En local, visiteurs en 5G | `PUBLIC_URL=https://… npm start` |
    | Stand ouvert au réseau dès le lancement | `npm run stand` |
 
-   Le terminal affiche alors l'adresse de la télécommande, le **code du stand**
-   et le **jeton de pilotage**. Garde-les sous les yeux.
+   Le terminal affiche alors l'adresse de la télécommande et le **code du
+   stand**. Garde-les sous les yeux.
 
 3. **Installer le moteur de transcription**, une seule fois, si tu veux que les
    liens Spotify soient convertis en partition :
@@ -398,16 +398,12 @@ démonstration à deux personnes autour d'un bureau, tout ce qui précède suffi
 
 4. **Vérifier le code QR** : il apparaît sous le lecteur. Scanne-le toi-même
    avec ton téléphone avant l'ouverture — c'est le seul test qui compte.
-5. **Choisir le profil** : *Réglages ⚙︎ → Mode borne → Portes ouvertes* ou
-   *Salon*. Le second allume l'écran d'appel, le ménagement du moteur et
-   prépare un code de verrouillage — voir « Trois jours de salon » plus bas.
+5. **Choisir le profil** : *Réglages ⚙︎ → Mode borne → Portes ouvertes*,
+   *Salon* ou *Démo*. Le profil Salon allume l'écran d'appel et le ménagement
+   du moteur. Le profil Démo masque la carte du code QR.
 6. **Imprimer le chevalet** : *Fiche à imprimer*. Une page A5 à plier et poser
    à côté du piano, avec le code QR en grand.
 7. **Passer en borne** : touche `S`. Plein écran, lecture en continu.
-
-> Si le jukebox tourne sur une autre machine que le serveur, ouvre-le une
-> première fois avec le jeton de pilotage : `http://…/?op=LEJETON`. Il s'en
-> souvient ensuite, et le jeton disparaît de la barre d'adresse.
 
 ### Pendant la journée
 
@@ -456,8 +452,8 @@ quatre choses-là.
 - **En fin de journée**, relève le bilan : *Réglages ⚙︎ → Bilan du stand →
   Copier le bilan*.
 
-> Le code du stand et le jeton de pilotage ne changent plus quand le serveur
-> redémarre : le chevalet imprimé lundi reste valable jeudi.
+> Le code du stand ne change plus quand le serveur redémarre : le chevalet
+> imprimé lundi reste valable jeudi.
 
 ### Ce qu'il faut savoir répondre
 

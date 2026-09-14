@@ -26,19 +26,22 @@ for (const track of library.tracks) {
 }
 console.log(`OK ${library.tracks.length} morceaux`);
 const stand = await (await get('/api/stand')).json();
-assert.equal(stand.operator, false);
+assert.equal('operator' in stand, false);
 assert.equal(new URL(stand.remoteUrl).origin, base.origin);
 assert.equal(new URL(stand.remoteUrl).protocol, 'https:');
-for (const route of ['/api/stand/now', '/api/tracks?category=Test&name=Test']) {
-  const res = await get(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
-  assert.equal(res.status, 403, route);
-}
-console.log('OK accès anonyme protégé et QR HTTPS');
-if (process.env.STAND_OPERATOR) {
-  const res = await get('/api/stand', { headers: { 'x-stand-operator': process.env.STAND_OPERATOR } });
-  assert.equal((await res.json()).operator, true);
-  console.log('OK jeton de pilotage');
-}
+const control = await get('/api/stand/queue/drop', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ key: '__deployment_probe__' }),
+});
+assert.equal(control.status, 200);
+const visitor = await get('/api/stand/cheer', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: '{}',
+});
+assert.equal(visitor.status, 403);
+console.log('OK pilotage admin direct, accès visiteur protégé et QR HTTPS');
 
 // Deux télécommandes doivent recevoir leur état pendant que l'API reste disponible.
 const controllers = [new AbortController(), new AbortController()];

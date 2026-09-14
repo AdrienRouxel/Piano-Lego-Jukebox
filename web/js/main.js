@@ -107,8 +107,6 @@ const dom = {
   queueEmpty: el('queue-empty'),
   queueClear: el('btn-queue-clear'),
   standAlarm: el('stand-alarm'),
-  operatorField: el('operator-field'),
-  operatorToken: el('operator-token'),
   localField: el('local-field'),
   localSwitch: el('set-local'),
   localHint: el('local-hint'),
@@ -144,7 +142,7 @@ const dom = {
 /** Réglages d'interface, à côté de ceux de la chorégraphie. */
 const UI_DEFAULTS = {
   volume: 0.8,
-  theme: 'epitech',
+  theme: 'moderne',
   geek: false,
   warmup: false,
   collapsedCategories: [],
@@ -155,7 +153,8 @@ const UI_DEFAULTS = {
   playable: false,
   showNames: true,
   resumeDelay: 25, // secondes de silence tolérées en mode borne
-  venue: 'jpo', // profil de borne : 'jpo' ou 'salon'
+  venue: 'jpo', // profil de borne : 'jpo', 'salon' ou 'demo'
+  showStandCard: true,
   attractDelay: 0, // secondes avant l'écran d'appel ; 0 = jamais
   keepAwake: true,
   restMotor: false,
@@ -1194,7 +1193,7 @@ function renderQueue() {
 function renderLocalSwitch() {
   const local = stand.local ?? {};
   const publicElsewhere = stand.available && !local.enabled;
-  const locked = local.pinned || !local.supported || !stand.operator;
+  const locked = local.pinned || !local.supported;
 
   dom.localSwitch.checked = Boolean(local.enabled);
   dom.localSwitch.disabled = locked;
@@ -1217,11 +1216,6 @@ function renderLocalSwitch() {
       'Indisponible : cette machine n’a aucune adresse sur un réseau local. Connecte-la au Wi‑Fi, puis rouvre les réglages.';
     return;
   }
-  if (!stand.operator) {
-    dom.localHint.textContent =
-      'Réservé au poste du stand : sans le jeton de pilotage, ce poste ne peut pas ouvrir le serveur sur le réseau.';
-    return;
-  }
   if (local.enabled) {
     dom.localHint.textContent =
       `Ouvert sur http://${local.address}:${local.port} — le téléphone doit être sur le même Wi‑Fi que cet ordinateur. ` +
@@ -1240,7 +1234,6 @@ function renderLocalSwitch() {
 function renderStandStatus() {
   const box = dom.standStatus;
   renderLocalSwitch();
-  dom.operatorField.hidden = stand.operator;
   box.dataset.ready = stand.available ? '1' : '0';
   if (stand.available) {
     // L'adresse vient de l'en-tête `Host` de la requête : c'est une donnée que
@@ -1254,13 +1247,6 @@ function renderStandStatus() {
         ? '. Le code QR de la scène y mène directement — à condition que le téléphone soit sur le même Wi‑Fi que cet ordinateur.'
         : '. Le code QR de la scène y mène directement — les visiteurs peuvent rester sur leur forfait mobile.'
     );
-    if (!stand.operator) {
-      const warning = document.createElement('span');
-      warning.innerHTML =
-        ' <strong>Ce poste n’a pas le jeton de pilotage</strong> : rouvre le jukebox avec ' +
-        '<code>?op=…</code>, le jeton est affiché dans le terminal du serveur.';
-      box.append(warning);
-    }
     return;
   }
   box.innerHTML =
@@ -1270,20 +1256,9 @@ function renderStandStatus() {
     '• visiteurs en 5G, sur un stand : <code>PUBLIC_URL=https://… npm start</code>, derrière un tunnel.';
 }
 
-/**
- * Ce qui empêche le stand de fonctionner, dit là où on le verra : sur la
- * scène, pas au fond du tiroir. Sans jeton de pilotage, par exemple, les
- * demandes des visiteurs s'accumulent sans jamais être jouées — une panne
- * silencieuse qui peut durer toute une journée.
- */
+/** Ce qui empêche le stand de fonctionner, dit là où on le verra. */
 function renderStandAlarm() {
   const alarms = [];
-  if (stand.available && !stand.operator) {
-    alarms.push(
-      'Ce poste n’a pas le jeton de pilotage : les demandes des visiteurs ne seront jamais jouées. ' +
-        'Colle le jeton dans Réglages ⚙︎ → Mode borne.'
-    );
-  }
   if (motorBlocked) {
     alarms.push('Piles trop faibles : le moteur est coupé. Le son continue, les touches ne bougent plus.');
   }
@@ -1292,6 +1267,10 @@ function renderStandAlarm() {
 }
 
 function renderStandPanel() {
+  if (!settings.showStandCard) {
+    dom.standPanel.hidden = true;
+    return;
+  }
   // Le panneau ne s'affiche que s'il a quelque chose à montrer : une adresse
   // à scanner, ou des demandes en attente.
   const useful = stand.available || stand.queue.length > 0 || motorBlocked;
@@ -1375,17 +1354,7 @@ function wireRequests() {
   requests.addEventListener('idle', () => renderTranscription(null));
 }
 
-function wireOperatorField() {
-  const apply = async () => {
-    const ok = await stand.useOperatorToken(dom.operatorToken.value);
-    renderStandStatus();
-    renderStandPanel();
-    toast(
-      ok ? 'Jeton accepté : ce poste pilote le stand.' : 'Jeton refusé. Vérifie ce qu’affiche le terminal du serveur.',
-      ok ? 'success' : 'error',
-      6000
-    );
-  };
+function wireLocalMode() {
   dom.localSwitch.addEventListener('change', async () => {
     const wanted = dom.localSwitch.checked;
     dom.localSwitch.disabled = true;
@@ -1404,14 +1373,6 @@ function wireOperatorField() {
       6000
     );
   });
-
-  el('btn-operator').addEventListener('click', apply);
-  dom.operatorToken.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      apply();
-    }
-  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1425,8 +1386,7 @@ function wireOperatorField() {
  * le range dans « Demandes ». La transcription en partition suit toute seule,
  * portée par la file d'attente.
  *
- * Ici, le jukebox parle en tant qu'opérateur : pas de code de stand à
- * présenter, mais le jeton de pilotage s'il en a un.
+ * Le jukebox connaît déjà le code du stand reçu à l'initialisation.
  */
 function sayLink(message, kind = 'info') {
   dom.linkState.hidden = !message;
@@ -1455,7 +1415,7 @@ async function submitLink(event) {
     const response = await fetch('/api/stand/link', {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...stand.controlHeaders },
-      body: JSON.stringify({ link: value }),
+      body: JSON.stringify({ link: value, code: stand.code }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -1805,11 +1765,11 @@ function startWatchdog() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Profils de borne : portes ouvertes, salon                           */
+/* Profils de borne : portes ouvertes, salon, démo                     */
 /* ------------------------------------------------------------------ */
 
 /**
- * Les deux situations n'ont presque rien en commun, et c'est ce qui justifie
+ * Ces situations n'ont presque rien en commun, et c'est ce qui justifie
  * un profil plutôt qu'un réglage de plus :
  *
  *   Portes ouvertes — une demi-journée, dans une salle de cours, avec des
@@ -1821,6 +1781,9 @@ function startWatchdog() {
  *   le réseau sature, l'ordinateur veut s'endormir et le moteur tourne neuf
  *   heures par jour. L'écran doit se voir de loin, se défendre tout seul, et
  *   durer.
+ *
+ *   Démo — pilotage direct par un administrateur, sans télécommande proposée
+ *   au public. La carte du code QR disparaît de la scène.
  *
  * Choisir un profil pose ces réglages-là ; chacun reste ensuite modifiable.
  */
@@ -1835,6 +1798,7 @@ const VENUE_PROFILES = {
     restMotor: false,
     showNames: true,
     resumeDelay: 25,
+    showStandCard: true,
   },
   salon: {
     label: 'salon',
@@ -1849,6 +1813,19 @@ const VENUE_PROFILES = {
     // saisi par le public.
     showNames: false,
     resumeDelay: 15,
+    showStandCard: true,
+  },
+  demo: {
+    label: 'démo',
+    audioProfile: 'salle',
+    handTrigger: false,
+    attractTop: false,
+    attractDelay: 0,
+    keepAwake: true,
+    restMotor: false,
+    showNames: false,
+    resumeDelay: 25,
+    showStandCard: false,
   },
 };
 
@@ -1873,7 +1850,7 @@ function applyVenue(name, { preset = true } = {}) {
   if (preset) {
     // Le verrouillage n'est jamais posé par un profil : il faut un code, et
     // un geste délibéré. On prépare seulement le code s'il manque.
-    for (const key of ['attractDelay', 'keepAwake', 'restMotor', 'showNames', 'resumeDelay', 'audioProfile', 'handTrigger', 'attractTop']) {
+    for (const key of ['attractDelay', 'keepAwake', 'restMotor', 'showNames', 'resumeDelay', 'audioProfile', 'handTrigger', 'attractTop', 'showStandCard']) {
       settings[key] = profile[key];
     }
     if (settings.venue === 'salon' && !settings.lockCode) {
@@ -1887,6 +1864,7 @@ function applyVenue(name, { preset = true } = {}) {
   syncVenueControls();
   applyKeepAwake(settings.keepAwake);
   player?.setAudioProfile(settings.audioProfile);
+  renderStandPanel();
   saveSettings();
 }
 
@@ -2634,7 +2612,7 @@ function boot() {
   wireRequests();
   wireLock();
   wireTally();
-  wireOperatorField();
+  wireLocalMode();
   wireStand();
   scoreMode.autoLandscape(Boolean(settings.scoreAuto));
   wireHubTools({

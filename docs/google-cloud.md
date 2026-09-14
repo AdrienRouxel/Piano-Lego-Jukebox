@@ -55,16 +55,11 @@ du frontend n'est nécessaire. Les modifications locales des morceaux sont
 copiées seulement si le fichier n'existe pas déjà dans le bucket ; aucun morceau
 distant n'est supprimé par le déploiement.
 
-Le fichier privé `.env.piano-cloud.json` conserve `STAND_OPERATOR` et
-`STAND_CODE`. Il est exclu de Git et des images. En son absence, le script
-récupère les jetons du service existant, ou en crée pour le premier déploiement.
-Ne pas publier ce fichier. Les administrateurs Cloud Run peuvent aussi lire les
-variables du service. Le serveur existant imprime le jeton dans ses logs de
-démarrage : l'accès Cloud Logging doit donc rester réservé aux administrateurs.
-
-Ouvrir une fois le jukebox avec `/?op=JETON` sur l'URL publique, ou saisir le
-jeton dans les réglages. Le navigateur le mémorise ; l'adresse sans jeton reste
-accessible aux visiteurs. Le code QR fournit l'adresse de la télécommande.
+Le fichier privé `.env.piano-cloud.json` conserve `STAND_CODE`. Il est exclu de
+Git et des images. En son absence, le script récupère le code du service
+existant, ou en crée un pour le premier déploiement. Ne pas publier ce fichier.
+Le code QR fournit l'adresse de la télécommande. La page principale du jukebox
+est réservée aux administrateurs et pilote directement le stand.
 
 ## Limites
 
