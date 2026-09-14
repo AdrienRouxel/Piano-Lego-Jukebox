@@ -7,6 +7,13 @@ assert.equal(base.protocol, 'https:');
 async function get(route, options = {}) {
   return fetch(new URL(route, base), { signal: AbortSignal.timeout(30000), ...options });
 }
+/** Juste après un déploiement, le conteneur Cloud Run démarre à froid : le
+ * pont Python relance et recharge le modèle onnx à chaque appel, et le tout
+ * premier passe largement au-dessus de 30 s. On laisse plus de marge pour
+ * cette seule requête plutôt que d'affaiblir le timeout général. */
+async function getWithTimeout(route, timeoutMs, options = {}) {
+  return get(route, { signal: AbortSignal.timeout(timeoutMs), ...options });
+}
 
 for (const route of ['/', '/r', '/print', '/geek.html', '/js/main.js', '/moderne.css', '/api/docs']) {
   const res = await get(route);
@@ -73,7 +80,7 @@ function sineWav(seconds = 2, rate = 22050, frequency = 440) {
   return wav;
 }
 
-const inferenceResponse = await get('/api/transcribe', {
+const inferenceResponse = await getWithTimeout('/api/transcribe', 90000, {
   method: 'POST',
   headers: { 'content-type': 'audio/wav' },
   body: sineWav(),
