@@ -210,7 +210,11 @@ Pendant la lecture :
 
 - **La pastille d'état** — gris : déconnecté ; orange clignotant : connexion ou
   reconnexion en cours ; vert : connecté, avec le nom du hub et la batterie.
-- **« Connecter le piano »** — ouvre le sélecteur Bluetooth.
+- **« Connecter le piano »** — ouvre le sélecteur Bluetooth. Une fois le piano
+  relié, le même bouton devient **« Déconnecter »**. Sans rien faire, la liaison
+  tient une heure (réglable dans *Le hub*), coupures comprises, puis se coupe
+  d'elle-même pour ménager les piles ; survole la pastille pour voir le temps
+  qu'il reste.
 - **🎼** — ouvre le **mode partition** : le morceau en cours, gravé sur deux
   portées, avec les notes qui s'allument au moment où elles sonnent et la page
   qui se tourne toute seule. Raccourci `M`, `Échap` pour sortir.

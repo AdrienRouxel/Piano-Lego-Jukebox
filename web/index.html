@@ -49,7 +49,7 @@
         <span class="dot" aria-hidden="true"></span>
         <span class="hub-label" id="hub-label-2">2ᵉ piano</span>
       </div>
-      <button class="btn btn-primary" id="btn-connect" type="button">Connecter le piano</button>
+      <button class="btn btn-primary" id="btn-connect" type="button" data-action="connect">Connecter le piano</button>
       <button class="btn modern-library-toggle" id="btn-library" type="button" aria-expanded="false" aria-controls="library">Bibliothèque</button>
       <button class="btn btn-icon" id="btn-score" type="button" aria-label="Mode partition" aria-pressed="false" title="Mode partition — suivre les notes sur la portée (touche M)">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 10h18M3 14h18M3 18h18"/><circle cx="8" cy="15.4" r="2.1" fill="currentColor" stroke="none"/><path d="M10.1 15.4V6.6l6.4-1.4v8.9"/><circle cx="14.4" cy="14.1" r="2.1" fill="currentColor" stroke="none"/></svg>
@@ -194,8 +194,12 @@
       </div>
       <!-- Le stand : ce que les visiteurs demandent depuis leur téléphone -->
       <section class="stand" id="stand" hidden aria-label="Demandes des visiteurs">
+        <button class="btn btn-icon stand-close" id="btn-close-stand" type="button" aria-label="Fermer la carte du code QR" title="Fermer — à rouvrir depuis les réglages">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
         <p class="stand-alarm" id="stand-alarm" hidden></p>
-        <div class="stand-call">
+        <!-- En thème moderne la carte flotte sur la scène : cet en-tête sert de poignée. -->
+        <div class="stand-call" id="stand-call">
           <div class="qr" id="qr" aria-hidden="true"></div>
           <div class="stand-words">
             <p class="stand-title">Choisis le morceau suivant</p>
@@ -456,6 +460,10 @@
             <input type="checkbox" id="set-attractTop" />
             <span>Montrer les trois morceaux les plus demandés</span>
           </label>
+          <label class="switch">
+            <input type="checkbox" id="set-showStandCard" />
+            <span>Afficher la carte du code QR sur la scène</span>
+          </label>
 
           <label class="field">
             <span class="field-label">Rendu sonore</span>
@@ -588,6 +596,18 @@
             <input type="checkbox" id="set-autoReconnect" checked />
             <span>Se reconnecter automatiquement après une coupure</span>
           </label>
+
+          <label class="field">
+            <span class="field-label">Durée de la session <small>puis la liaison se coupe d'elle-même</small></span>
+            <select id="set-hubSession">
+              <option value="30">30 minutes</option>
+              <option value="60">1 heure</option>
+              <option value="120">2 heures</option>
+              <option value="240">4 heures</option>
+              <option value="0">Sans limite</option>
+            </select>
+          </label>
+          <p class="hint">La session tient ce temps-là, coupures comprises, pour ménager les piles. Le bouton « Déconnecter » de la barre y met fin à tout moment&nbsp;; un morceau en cours va jusqu'au bout avant la coupure.</p>
 
           <div class="row">
             <button class="btn btn-ghost" id="btn-refresh-info" type="button">Actualiser les infos</button>

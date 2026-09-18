@@ -10,7 +10,8 @@
  *     accusés de réception, exploration des ports) pour l'interface et la console.
  *
  * Événements émis (CustomEvent) :
- *   status, device, sensor, battery, button, alert, power, motor, info, raw, log
+ *   status, device, sensor, battery, button, alert, power, motor, info, raw, log,
+ *   session (début, fin, échéance) et sessionend (annulable : repousse la coupure)
  */
 
 import {
@@ -64,8 +65,32 @@ const FEEDBACK_TIMEOUT = 2000;
 const RAW_LOG_SIZE = 400;
 /** Attentes successives avant nouvelle tentative de reconnexion (ms). */
 const RECONNECT_BACKOFF = [800, 1500, 3000, 5000, 8000, 12000];
+/**
+ * Durée d'une session par défaut (ms). Passé ce délai, le jukebox coupe la
+ * liaison lui-même : un piano qu'on oublie connecté vide ses piles en une
+ * nuit. `0` : sans limite.
+ */
+export const DEFAULT_SESSION_MS = 60 * 60 * 1000;
+/**
+ * Entretien du lien (ms). Le hub renvoie sa charge et son signal de lui-même,
+ * mais rien ne part vers lui entre deux morceaux : on lui demande sa charge à
+ * intervalle régulier, ce qui rafraîchit la pastille et prouve que la liaison
+ * répond encore dans les deux sens.
+ */
+const KEEPALIVE_INTERVAL = 30_000;
+/** Une session échue pendant un morceau attend la fin : on revérifie à ce rythme (ms). */
+const SESSION_RETRY = 30_000;
 
 const STORAGE_DEVICE_ID = 'lego-piano-jukebox/deviceId';
+
+/** « 45 min », « 1 h », « 1 h 30 » — pour le journal et les infobulles. */
+export function formatMinutes(minutes) {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  if (!hours) return `${total} min`;
+  return rest ? `${hours} h ${String(rest).padStart(2, '0')}` : `${hours} h`;
+}
 
 export class PianoHub extends EventTarget {
   constructor() {
@@ -76,6 +101,17 @@ export class PianoHub extends EventTarget {
 
     this.status = 'disconnected'; // disconnected | connecting | connected | reconnecting
     this.autoReconnect = true;
+
+    /**
+     * Une session commence au premier lien établi et survit aux coupures :
+     * tant qu'elle court, on reconnecte sans jamais abandonner. Elle finit
+     * d'elle-même au bout de `sessionDuration` (0 : jamais), ou sur
+     * `disconnect()`.
+     */
+    this.sessionDuration = DEFAULT_SESSION_MS;
+    this.sessionStartedAt = null;
+    this.sessionEndsAt = null;
+    this.keepAliveInterval = KEEPALIVE_INTERVAL;
 
     /** Tout ce que le hub sait dire de lui-même. */
     this.info = {
@@ -135,6 +171,8 @@ export class PianoHub extends EventTarget {
     this._userDisconnect = false;
     this._reconnectAttempt = 0;
     this._reconnectTimer = null;
+    this._sessionTimer = null;
+    this._keepAliveTimer = null;
     this._sequenceToken = 0;
     this._onDisconnected = this._onDisconnected.bind(this);
   }
@@ -277,6 +315,8 @@ export class PianoHub extends EventTarget {
     } catch { /* navigation privée */ }
 
     this._reconnectAttempt = 0;
+    if (this.sessionStartedAt === null) this._startSession();
+    this._startKeepAlive();
     this._setStatus('connected', { name: this.device.name });
     this._log('Hub connecté.', 'success');
 
@@ -292,13 +332,22 @@ export class PianoHub extends EventTarget {
   async disconnect() {
     this._userDisconnect = true;
     this._cancelReconnect();
+    this._endSession();
     if (!this.device) return;
+    // En pleine reconnexion, aucun lien à rompre : le hub ne dira jamais
+    // « déconnecté », on le déclare nous-mêmes.
+    const abandoned = this.status === 'reconnecting';
     try {
       if (this.connected) await this.stopMotor();
     } catch { /* le hub est peut-être déjà parti */ }
     try {
+      // Coupe aussi une tentative `gatt.connect()` encore en vol.
       this.device.gatt?.disconnect();
     } catch { /* idem */ }
+    if (abandoned) {
+      this._log('Reconnexion abandonnée.', 'warn');
+      this._setStatus('disconnected');
+    }
   }
 
   /** Demande au hub de se déconnecter lui-même (il reste allumé). */
@@ -316,6 +365,7 @@ export class PianoHub extends EventTarget {
 
   _onDisconnected() {
     const wasConnected = this.status === 'connected';
+    this._stopKeepAlive();
     this.characteristic = null;
     this.server = null;
     this.ports.clear();
@@ -329,6 +379,7 @@ export class PianoHub extends EventTarget {
 
     if (this._userDisconnect || !this.autoReconnect || !this.device) {
       this._log('Hub déconnecté.', wasConnected ? 'warn' : 'info');
+      this._endSession();
       this._setStatus('disconnected');
       return;
     }
@@ -346,11 +397,9 @@ export class PianoHub extends EventTarget {
       try {
         await this._attach();
       } catch {
-        if (this._reconnectAttempt >= 12) {
-          this._log('Reconnexion abandonnée après 12 tentatives.', 'error');
-          this._setStatus('disconnected');
-          return;
-        }
+        // On insiste tant que la session court : le hub a pu être rallumé
+        // entre-temps, et personne ne surveille l'écran pour recliquer.
+        if (this._userDisconnect) return;
         this._scheduleReconnect();
       }
     }, delay);
@@ -359,6 +408,84 @@ export class PianoHub extends EventTarget {
   _cancelReconnect() {
     if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
     this._reconnectTimer = null;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Session                                                          */
+  /* ---------------------------------------------------------------- */
+
+  /** Temps restant avant la fin de la session (ms), ou `null` sans limite ni session. */
+  get sessionRemaining() {
+    if (this.sessionEndsAt === null) return null;
+    return Math.max(0, this.sessionEndsAt - Date.now());
+  }
+
+  /**
+   * Change la durée de session (ms, 0 : sans limite). Une session en cours
+   * est recalculée depuis son début, pas depuis maintenant : allonger d'une
+   * heure un piano connecté depuis cinquante minutes lui en laisse dix.
+   */
+  setSessionDuration(ms) {
+    this.sessionDuration = Math.max(0, Number(ms) || 0);
+    if (this.sessionStartedAt !== null) this._armSession();
+  }
+
+  _startSession() {
+    this.sessionStartedAt = Date.now();
+    this._armSession();
+    this._emit('session', { phase: 'start', endsAt: this.sessionEndsAt });
+  }
+
+  _armSession() {
+    clearTimeout(this._sessionTimer);
+    this._sessionTimer = null;
+    if (!this.sessionDuration) {
+      this.sessionEndsAt = null;
+      return;
+    }
+    this.sessionEndsAt = this.sessionStartedAt + this.sessionDuration;
+    this._sessionTimer = setTimeout(() => this._expireSession(), Math.max(0, this.sessionEndsAt - Date.now()));
+  }
+
+  /**
+   * La session est échue. L'événement `sessionend` est annulable : un écouteur
+   * qui appelle `preventDefault()` (un morceau en cours) repousse la coupure
+   * d'une demi-minute, et ainsi de suite jusqu'au silence.
+   */
+  _expireSession() {
+    this._sessionTimer = null;
+    if (this.sessionStartedAt === null) return;
+    const event = new CustomEvent('sessionend', { cancelable: true, detail: { startedAt: this.sessionStartedAt } });
+    if (!this.dispatchEvent(event)) {
+      this._sessionTimer = setTimeout(() => this._expireSession(), SESSION_RETRY);
+      return;
+    }
+    const minutes = Math.round((Date.now() - this.sessionStartedAt) / 60000);
+    this._log(`Session terminée après ${formatMinutes(minutes)} : liaison coupée pour ménager les piles.`, 'warn');
+    this._emit('session', { phase: 'expired', startedAt: this.sessionStartedAt });
+    this.disconnect();
+  }
+
+  _endSession() {
+    clearTimeout(this._sessionTimer);
+    this._sessionTimer = null;
+    if (this.sessionStartedAt === null) return;
+    this.sessionStartedAt = null;
+    this.sessionEndsAt = null;
+    this._emit('session', { phase: 'end' });
+  }
+
+  _startKeepAlive() {
+    this._stopKeepAlive();
+    this._keepAliveTimer = setInterval(() => {
+      if (!this.connected) return;
+      this._enqueue(encodeHubProperty(HubProperty.BATTERY_VOLTAGE, HubPropertyOperation.REQUEST_UPDATE));
+    }, this.keepAliveInterval);
+  }
+
+  _stopKeepAlive() {
+    clearInterval(this._keepAliveTimer);
+    this._keepAliveTimer = null;
   }
 
   /* ---------------------------------------------------------------- */

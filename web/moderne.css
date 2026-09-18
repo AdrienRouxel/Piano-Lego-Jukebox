@@ -397,6 +397,11 @@
 /* Les modes secondaires se superposent à la scène, jamais sous le pli. */
 [data-theme="moderne"] .stage > .rest,
 [data-theme="moderne"] .stage > .stand { position: absolute; z-index: 7; left: 16px; bottom: 92px; width: min(580px, calc(100% - 32px)); max-height: 50%; overflow: auto; }
+/* La carte flotte : on la saisit par son en-tête et on la pose où l'on veut. */
+[data-theme="moderne"] .stage > .stand .stand-call { cursor: grab; touch-action: none; }
+[data-theme="moderne"] .stage > .stand.dragging .stand-call { cursor: grabbing; }
+[data-theme="moderne"] .stand-close { border: 0; border-radius: 50%; background: var(--sunken); }
+[data-theme="moderne"] .stand .viz-head { padding-right: 40px; }
 [data-theme="moderne"] body.geek-on .layout { padding-bottom: 16px; }
 html[data-theme="moderne"][data-kiosk="1"] .layout { max-width: none; }
 html[data-theme="moderne"][data-kiosk="1"] .piano3d-home { height: 100%; }

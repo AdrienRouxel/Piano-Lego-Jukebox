@@ -2316,6 +2316,23 @@ body.geek-screen {
   border-radius: var(--radius);
   background: var(--sunken);
 }
+.stand { position: relative; }
+/* Le bouton de fermeture se pose dans le coin, par-dessus le contenu. */
+.stand-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  color: var(--ink-3);
+}
+.stand-close:hover { color: var(--ink); }
+/* L'en-tête de la file laisse la place au bouton, quel que soit le thème. */
+.stand .viz-head { padding-right: 34px; }
+/* Pendant un déplacement, rien ne doit se sélectionner sous le doigt. */
+.stand.dragging { user-select: none; }
 @media (min-width: 900px) {
   .stand { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
 }

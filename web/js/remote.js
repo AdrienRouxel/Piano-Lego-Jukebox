@@ -272,6 +272,21 @@ function showRest(seconds) {
 
 /** Dernier « en ce moment » reçu du serveur. */
 let lastNow = null;
+/** Dernière relecture de la bibliothèque provoquée par un morceau inconnu. */
+let libraryRefreshedAt = 0;
+
+/**
+ * Le morceau qui joue n'est pas dans la liste ? Elle date du chargement de la
+ * page, et une demande arrivée depuis — la partition d'un lien, par exemple —
+ * lui manque. On la relit, sans insister : une fois par demi-minute au plus.
+ */
+function discover(now) {
+  if (!now?.id || now.id === 'pause' || !library.length) return;
+  if (library.some((track) => track.id === now.id)) return;
+  if (Date.now() - libraryRefreshedAt < 30_000) return;
+  libraryRefreshedAt = Date.now();
+  loadLibrary();
+}
 
 /** Applique un instantané reçu du serveur : ce qui joue, et la file. */
 function apply(state) {
@@ -282,6 +297,7 @@ function apply(state) {
   // continuerait d'avancer sur un piano muet.
   lastNow = now ?? null;
   resync(now);
+  discover(now);
   refreshScore(now);
 
   // Une pause de service prend le pas sur le morceau : c'est la seule chose

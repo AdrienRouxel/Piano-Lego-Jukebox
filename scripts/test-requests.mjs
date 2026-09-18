@@ -57,6 +57,32 @@ const sequential = pipelineFor(queue, queue.map((entry) => ({
 })));
 assert.deepEqual(await sequential.waitFor(queue[1].key), { ok: true, status: 'ready' });
 
+// Un autre onglet a transcrit pendant que celui-ci échouait : la partition
+// existe désormais, et l'échec mémorisé ne doit pas la faire retirer de la file.
+const racedEntry = { key: 'q5', id: 'Demandes/Concurrente', title: 'Concurrente', transcribe: true };
+let racedTracks = [{ id: racedEntry.id, midiUrl: null, audioUrl: '/tracks/Concurrente.m4a' }];
+const raced = new RequestPipeline({
+  stand: { queue: [racedEntry] },
+  getLibrary: () => racedTracks,
+  reloadLibrary: async () => {
+    racedTracks = [{ id: racedEntry.id, midiUrl: '/tracks/Concurrente.mid', audioUrl: '/tracks/Concurrente.m4a' }];
+  },
+});
+raced.available = async () => true;
+raced._process = async () => { throw new Error('moteur rapide : HTTP 429'); };
+assert.deepEqual(await raced.waitFor(racedEntry.key), { ok: true, status: 'ready' });
+
+const lostEntry = { key: 'q6', id: 'Demandes/Perdue', title: 'Perdue', transcribe: true };
+const lost = pipelineFor([lostEntry], [{ id: lostEntry.id, midiUrl: null, audioUrl: '/tracks/Perdue.m4a' }]);
+lost.available = async () => true;
+lost._process = async () => { throw new Error('Aucune note reconnue dans cet extrait.'); };
+assert.deepEqual(await lost.waitFor(lostEntry.key), {
+  ok: false,
+  status: 'failed',
+  message: 'Aucune note reconnue dans cet extrait.',
+});
+assert.equal((await lost.waitFor(lostEntry.key)).ok, false, 'sans partition sur le disque, l’échec reste un échec');
+
 assert.deepEqual(readLink('https://music.apple.com/fr/song/sur-la-piste/6771954763')?.id, '6771954763');
 assert.deepEqual(readLink('https://music.apple.com/us/song/6771954763')?.id, '6771954763');
 assert.deepEqual(
@@ -64,4 +90,11 @@ assert.deepEqual(
   '6771954763'
 );
 
-console.log('✓ Demandes : attente du MIDI, erreur explicite, file séquentielle et liens Apple Music');
+assert.deepEqual(readLink('https://www.deezer.com/fr/track/72203431')?.id, '72203431');
+assert.deepEqual(
+  readLink('https://link.deezer.com/s/34qPoOTX7y5ecnFLlc6vn'),
+  { provider: 'deezer', id: null, url: 'https://link.deezer.com/s/34qPoOTX7y5ecnFLlc6vn' },
+  'un lien de partage Deezer est reconnu, son identifiant viendra des redirections'
+);
+
+console.log('✓ Demandes : attente du MIDI, erreur explicite, file séquentielle, partition venue d’ailleurs, liens Apple Music et Deezer');

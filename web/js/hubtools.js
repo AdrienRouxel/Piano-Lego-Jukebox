@@ -13,6 +13,8 @@ const el = (id) => document.getElementById(id);
 /** Réglages ajoutés par ce module au dictionnaire partagé. */
 export const HUB_TOOL_SETTINGS = {
   autoReconnect: true,
+  /** Durée d'une session Bluetooth, en minutes (0 : sans limite). */
+  hubSession: 60,
   brakeOnStop: true,
   rampStart: true,
 };
@@ -26,11 +28,12 @@ export const HUB_TOOL_SETTINGS = {
  * @param {()=>void} [options.onManualControl] appelé avant toute commande manuelle
  *   du moteur, pour mettre la lecture en pause
  */
-export function wireHubTools({ hub, toast, settings, saveSettings, onManualControl = () => {} }) {
+export function wireHubTools({ hub, toast, settings, saveSettings, onManualControl = () => {}, onSessionChange = () => {} }) {
   Object.assign(settings, { ...HUB_TOOL_SETTINGS, ...settings });
   hub.autoReconnect = Boolean(settings.autoReconnect);
 
-  wireHubPanel({ hub, toast, settings, saveSettings });
+  wireHubPanel({ hub, toast, settings, saveSettings, onSessionChange });
+
   wireMotorTests({ hub, toast, settings, onManualControl });
   wireSensorPanel({ hub, toast });
   wirePowerPanel({ hub });
@@ -55,7 +58,7 @@ const INFO_ROWS = [
   ['rssi', 'Signal', (v) => `${v} dBm`],
 ];
 
-function wireHubPanel({ hub, toast, settings, saveSettings }) {
+function wireHubPanel({ hub, toast, settings, saveSettings, onSessionChange }) {
   const grid = el('hub-info');
   const alertBox = el('hub-alerts');
   const nameInput = el('hub-name');
@@ -138,6 +141,23 @@ function wireHubPanel({ hub, toast, settings, saveSettings }) {
   autoReconnect.addEventListener('change', () => {
     settings.autoReconnect = autoReconnect.checked;
     hub.autoReconnect = autoReconnect.checked;
+    saveSettings();
+  });
+
+  const session = el('set-hubSession');
+  const applySession = () => {
+    const minutes = Math.max(0, Number(settings.hubSession) || 0);
+    settings.hubSession = minutes;
+    // Le menu ne propose que quelques durées : une valeur inconnue (ancien
+    // réglage, console) retombe sur l'option la plus proche par excès.
+    const options = [...session.options].map((option) => Number(option.value));
+    session.value = String(options.includes(minutes) ? minutes : minutes === 0 ? 0 : options.filter(Boolean).find((value) => value >= minutes) ?? 0);
+    onSessionChange(minutes * 60000);
+  };
+  applySession();
+  session.addEventListener('change', () => {
+    settings.hubSession = Number(session.value);
+    applySession();
     saveSettings();
   });
 

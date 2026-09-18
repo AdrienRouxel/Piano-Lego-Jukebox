@@ -312,6 +312,13 @@ const stand = {
   queue: [],
   /** Ce que joue le jukebox, tel qu'il le publie lui-même. */
   now: null,
+  /**
+   * Le jukebox qui publie `now` en ce moment : son identifiant de page, la
+   * date de sa dernière publication et s'il jouait. Un seul poste dirige à la
+   * fois — voir `/api/stand/now`.
+   * @type {{id:string, at:number, playing:boolean}|null}
+   */
+  conductor: null,
   /** Historique du jour, pour le bilan de fin de stand. */
   history: [],
   /** Flux SSE ouverts (jukebox et téléphones). */
@@ -335,6 +342,12 @@ const HISTORY_LIMIT = 200;
 /** Limitation de débit : requêtes par adresse et par minute. */
 const RATE_WINDOW = 60_000;
 const RATE_MAX = 40;
+/**
+ * Silence au-delà duquel le jukebox qui publiait est considéré parti. Il
+ * publie toutes les deux secondes : quatre publications manquées, c'est un
+ * onglet fermé sans prévenir, une machine en veille ou un réseau coupé.
+ */
+const CONDUCTOR_TTL = 8000;
 
 /* --- Identité de l'appelant ---------------------------------------- */
 
@@ -693,8 +706,36 @@ const VENV_PYTHON = path.join(
 const TRANSCRIBE_SCRIPT = path.join(ROOT, 'scripts', 'transcribe.py');
 /** Un extrait de trente secondes en mono 22 kHz pèse moins de 2 Mo. */
 const AUDIO_BODY_LIMIT = 32 * 1024 * 1024;
-/** Une seule inférence à la fois : l'instance Cloud Run n'a qu'un CPU. */
+/**
+ * Une seule inférence à la fois : l'instance Cloud Run n'a qu'un CPU. Les
+ * suivantes attendent leur tour plutôt que d'être refusées — un refus renvoie
+ * le navigateur vers son moteur embarqué, qui n'existe pas sur le serveur
+ * hébergé, et la demande passerait pour un échec. Au-delà de quelques
+ * requêtes en attente, en revanche, on refuse : c'est une rafale.
+ */
+const TRANSCRIBE_WAITING_LIMIT = 4;
 let transcriptionBusy = false;
+/** @type {Array<() => void>} */
+const transcriptionWaiting = [];
+/** Deux extraits arrivés dans la même milliseconde ne doivent pas partager un fichier. */
+let transcriptionSerial = 0;
+
+/** Attend que le moteur soit libre, ou renvoie `false` si trop de monde attend déjà. */
+function acquireTranscriber() {
+  if (!transcriptionBusy) {
+    transcriptionBusy = true;
+    return Promise.resolve(true);
+  }
+  if (transcriptionWaiting.length >= TRANSCRIBE_WAITING_LIMIT) return Promise.resolve(false);
+  return new Promise((resolve) => transcriptionWaiting.push(() => resolve(true)));
+}
+
+/** Passe le moteur au suivant, ou le libère. */
+function releaseTranscriber() {
+  const next = transcriptionWaiting.shift();
+  if (next) next();
+  else transcriptionBusy = false;
+}
 
 /** Lance le pont Python et renvoie ce qu'il a écrit sur la sortie standard. */
 function runPython(args) {
@@ -745,24 +786,22 @@ async function handleTranscribe(req, res) {
     return;
   }
 
-  if (transcriptionBusy) {
-    // Le navigateur se rabattra sur son moteur embarqué. Drainer le corps évite
-    // de laisser une connexion à moitié lue sur l'instance.
-    req.resume();
-    sendJson(res, 429, { error: 'Une transcription est déjà en cours. Réessaie dans un instant.' });
+  // Le corps est lu avant de prendre son tour : un extrait pèse un ou deux
+  // mégaoctets, et la connexion n'a pas à rester à moitié lue pendant l'attente.
+  const body = await readRawBody(req, AUDIO_BODY_LIMIT);
+  if (!body || body.length < 44 || body.subarray(0, 4).toString('latin1') !== 'RIFF') {
+    sendJson(res, 400, { error: 'Le corps attendu est un fichier WAV.' });
     return;
   }
-  transcriptionBusy = true;
+
+  if (!(await acquireTranscriber())) {
+    sendJson(res, 429, { error: 'Trop de transcriptions en attente. Réessaie dans un instant.' });
+    return;
+  }
 
   let scratch = null;
   try {
-    const body = await readRawBody(req, AUDIO_BODY_LIMIT);
-    if (!body || body.length < 44 || body.subarray(0, 4).toString('latin1') !== 'RIFF') {
-      sendJson(res, 400, { error: 'Le corps attendu est un fichier WAV.' });
-      return;
-    }
-
-    scratch = path.join(os.tmpdir(), `jukebox-${Date.now()}-${process.pid}.wav`);
+    scratch = path.join(os.tmpdir(), `jukebox-${Date.now()}-${process.pid}-${transcriptionSerial++}.wav`);
     await fsp.writeFile(scratch, body);
     const { code, out, err } = await runPython([scratch]);
     if (code !== 0) {
@@ -775,7 +814,7 @@ async function handleTranscribe(req, res) {
     sendJson(res, 500, { error: error.message });
   } finally {
     if (scratch) await fsp.unlink(scratch).catch(() => {});
-    transcriptionBusy = false;
+    releaseTranscriber();
   }
 }
 
@@ -973,6 +1012,20 @@ async function handleTrackUpload(req, res, url) {
   await fsp.mkdir(dir, { recursive: true });
   await fsp.writeFile(filePath, body);
   forgetLibrary(); // la bibliothèque vient de changer sous nos pieds
+
+  // La partition existe : la demande n'a plus rien à attendre, et tout
+  // jukebox qui la voit passer — y compris un autre onglet que celui qui a
+  // transcrit — peut la jouer telle quelle.
+  const id = `${category}/${name}`;
+  let settled = 0;
+  for (const entry of stand.queue) {
+    if (entry.id === id && entry.transcribe) {
+      entry.transcribe = false;
+      settled += 1;
+    }
+  }
+  if (settled) broadcastState();
+
   sendJson(res, 201, {
     category,
     name,
@@ -1130,6 +1183,27 @@ async function handleStandPost(req, res, pathname, url) {
 
   if (pathname === '/api/stand/now') {
     const now = body.now && typeof body.now === 'object' ? body.now : null;
+
+    /*
+     * Un seul jukebox publie à la fois. Deux pages ouvertes en même temps —
+     * un second onglet, un administrateur qui jette un œil depuis un autre
+     * appareil — enverraient chacune leur propre « en ce moment », et les
+     * téléphones verraient le titre changer toutes les deux secondes.
+     *
+     * Le premier arrivé garde la main tant qu'il publie. Un autre poste ne la
+     * prend que si le premier se tait, s'est retiré (publication vide), ou
+     * s'il est à l'arrêt alors que le nouveau venu joue : ce qui sonne l'emporte.
+     */
+    const source = String(body.source ?? '').slice(0, 40);
+    const playing = now?.state === 'playing';
+    const holder = stand.conductor;
+    const heldByOther = holder && holder.id !== source && Date.now() - holder.at < CONDUCTOR_TTL;
+    if (heldByOther && (holder.playing || !playing)) {
+      sendJson(res, 200, { ok: true, conductor: false });
+      return;
+    }
+    stand.conductor = now ? { id: source, at: Date.now(), playing } : null;
+
     const changed = Boolean(now?.id) && now.id !== stand.now?.id;
     stand.now = now
       ? {
@@ -1151,7 +1225,7 @@ async function handleStandPost(req, res, pathname, url) {
       if (stand.history.length > HISTORY_LIMIT) stand.history.shift();
     }
     broadcastState();
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, conductor: true });
     return;
   }
 

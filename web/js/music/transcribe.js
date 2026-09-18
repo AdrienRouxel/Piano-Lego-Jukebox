@@ -128,16 +128,34 @@ export function fastEngineStatus() {
   return fastEngine;
 }
 
-/** Transcription par le serveur. Lève si elle échoue — l'appelant se rabat. */
+/** Le serveur dit qu'il est pris : combien de fois, et à quel rythme, insister. */
+const BUSY_RETRIES = 6;
+const BUSY_DELAY_MS = 5000;
+
+/**
+ * Transcription par le serveur. Lève si elle échoue — l'appelant se rabat.
+ *
+ * Un serveur occupé (429) n'est pas un serveur en panne : une autre
+ * transcription passe devant, et la nôtre attendra quelques secondes. Se
+ * rabattre tout de suite sur le moteur du navigateur serait un mauvais calcul,
+ * surtout sur le serveur hébergé, où ce moteur n'est pas installé du tout.
+ */
 async function transcribeOnServer(mono) {
-  const response = await fetch('/api/transcribe', {
-    method: 'POST',
-    headers: { 'content-type': 'audio/wav' },
-    body: encodeWav(mono),
-  });
-  if (!response.ok) throw new Error(`moteur rapide : HTTP ${response.status}`);
-  const payload = await response.json();
-  return payload.notes.sort((a, b) => a.start - b.start || a.midi - b.midi);
+  const wav = encodeWav(mono);
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'content-type': 'audio/wav' },
+      body: wav,
+    });
+    if (response.status === 429 && attempt < BUSY_RETRIES) {
+      await new Promise((resolve) => setTimeout(resolve, BUSY_DELAY_MS));
+      continue;
+    }
+    if (!response.ok) throw new Error(`moteur rapide : HTTP ${response.status}`);
+    const payload = await response.json();
+    return payload.notes.sort((a, b) => a.start - b.start || a.midi - b.midi);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,15 +171,21 @@ export async function transcribe(mono, onProgress) {
   // Le moteur rapide d'abord : même réseau, mais dix à quinze fois plus vite.
   // S'il manque ou trébuche, le navigateur reprend la main sans rien dire.
   const status = await fastEngineStatus();
+  let serverError = null;
   if (status.available) {
     try {
       onProgress?.(0.15);
       const notes = await transcribeOnServer(mono);
       onProgress?.(1);
       return notes;
-    } catch {
-      /* on continue avec le moteur du navigateur */
+    } catch (error) {
+      serverError = error; // on continue avec le moteur du navigateur
     }
+  }
+  if (serverError && !(await engineAvailable())) {
+    // Rien à se rabattre : l'erreur utile est celle du serveur, pas un
+    // « moteur absent » qui enverrait chercher un téléchargement inutile.
+    throw new Error(`Le moteur du serveur n’a pas répondu (${serverError.message}).`, { cause: serverError });
   }
   return transcribeInBrowser(mono, onProgress);
 }

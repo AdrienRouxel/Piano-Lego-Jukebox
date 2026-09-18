@@ -35,9 +35,10 @@ dépôt, utiliser le déploiement manuel ci-dessous ou l'application.
 Les flux d'événements du stand occupent plusieurs requêtes simultanées : une
 fraction de CPU, qui impose une concurrence de 1 dans Cloud Run, ne convient
 pas. La mémoire de 1 Gio accueille Node, FFmpeg et Basic Pitch avec son moteur
-ONNX. Le serveur n'accepte qu'une inférence à la fois afin qu'une rafale de
-demandes ne sature pas l'instance. Aucune VM, aucun équilibreur externe ni base
-de données.
+ONNX. Le serveur ne calcule qu'une inférence à la fois, les suivantes
+attendent leur tour (quatre au plus, puis refus), afin qu'une rafale de demandes
+ne sature pas l'instance. Aucune VM, aucun équilibreur externe ni base de
+données.
 
 Quand aucun navigateur ne garde de connexion ouverte, le service peut revenir
 à zéro instance. Une connexion du jukebox ou de la télécommande maintient une

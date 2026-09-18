@@ -641,6 +641,17 @@ La page du jukebox, elle, reste sur l'ordinateur relié au piano : c'est le seul
 poste qui parle en Bluetooth au modèle. Le Web Bluetooth exigeant un contexte
 sécurisé, ce poste doit être ouvert sur `localhost` ou en `https://`.
 
+**Une seule page du jukebox dirige à la fois.** Chaque page publie ce qu'elle
+joue toutes les deux secondes ; deux pages ouvertes en même temps — un second
+onglet oublié, un administrateur qui jette un œil au site depuis un autre
+appareil — feraient changer le titre sur les téléphones à chaque publication.
+Le serveur ne suit donc que le premier poste qui publie, tant qu'il publie : un
+autre ne prend la main que si le premier se retire, se tait huit secondes, ou
+est à l'arrêt pendant que le nouveau joue. La page écartée le dit dans son
+journal. Dans un même navigateur, un second onglet du jukebox reste en plus
+passif : il ne rattrape pas le hub Bluetooth et ne transcrit pas les demandes,
+tant que le premier onglet est ouvert.
+
 La télécommande sait aussi devenir un **pupitre** : un visiteur qui couche son
 téléphone pendant qu'un morceau joue voit la partition s'ouvrir et défiler —
 voir [Le mode partition](#le-mode-partition).
@@ -697,7 +708,15 @@ sans qu'on ait vu passer le calcul. Si son tour arrive avant la fin du calcul,
 le jukebox l'attend : une demande venue d'un lien ne démarre jamais en audio
 seul. Si aucun moteur de transcription n'est disponible ou si l'analyse échoue,
 la demande est retirée de la file avec une erreur explicite plutôt que d'être
-jouée sans notes MIDI.
+jouée sans notes MIDI. Avant d'en arriver là, le jukebox vérifie que la
+partition n'est pas apparue entre-temps sur le disque — écrite par un autre
+onglet, par exemple — et le serveur, dès qu'une partition est déposée, signale
+à toutes les pages que la demande n'a plus rien à attendre.
+
+Le moteur du serveur ne calcule qu'une transcription à la fois. Une deuxième
+demande qui arrive pendant ce temps attend son tour (quatre au plus) plutôt que
+d'être refusée, et le navigateur, s'il essuie tout de même un refus, réessaie
+quelques fois avant de se rabattre sur son propre moteur.
 
 Ce qu'on entend alors, c'est **la partition, pas l'extrait** : un stand vient
 voir un piano jouer, pas écouter trente secondes de streaming. L'enregistrement
@@ -1018,10 +1037,17 @@ et puissance du signal. On peut aussi :
 - **la renommer** (14 caractères, gardés dans sa mémoire — le nouveau nom
   apparaîtra aussi dans l'application LEGO) ;
 - **l'éteindre à distance** — il faudra rappuyer sur le bouton vert ;
-- **se reconnecter tout seul**. Si la liaison tombe, le projet réessaie six fois
-  avec un délai croissant, jusqu'à douze tentatives. Et au chargement de la page,
-  si le navigateur a gardé l'autorisation d'un hub déjà utilisé, la liaison se
-  rétablit sans repasser par le sélecteur.
+- **se reconnecter tout seul**. Si la liaison tombe, le projet réessaie avec un
+  délai croissant (jusqu'à douze secondes entre deux essais), sans jamais
+  abandonner tant que la session court. Et au chargement de la page, si le
+  navigateur a gardé l'autorisation d'un hub déjà utilisé, la liaison se
+  rétablit sans repasser par le sélecteur ;
+- **tenir une session**, puis s'effacer. La liaison est entretenue (une demande
+  de charge toutes les trente secondes) pendant **une heure par défaut**,
+  coupures comprises ; passé ce délai, le jukebox déconnecte le piano de
+  lui-même pour ménager les piles — en laissant d'abord finir le morceau en
+  cours. La durée se règle dans *Le hub* (30 min à 4 h, ou sans limite), et le
+  bouton **Déconnecter** de la barre met fin à la session à tout moment.
 
 Quatre pastilles suivent les **alertes matérielles** du hub : tension basse,
 courant élevé, signal faible, surpuissance. Elles passent au rouge quand le hub

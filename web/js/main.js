@@ -13,7 +13,7 @@ import { publishPianoState } from './piano3d-state.js';
  *          └──────────► mode partition : la portée, gravée et suivie
  */
 
-import { PianoHub } from './lego/hub.js';
+import { PianoHub, formatMinutes } from './lego/hub.js';
 import { Player } from './music/player.js';
 import { MotionDriver, DEFAULT_SETTINGS } from './music/choreography.js';
 import { Warmup } from './music/warmup.js';
@@ -93,6 +93,8 @@ const dom = {
   log: el('log'),
 
   standPanel: el('stand'),
+  standCall: el('stand-call'),
+  standClose: el('btn-close-stand'),
   standButton: el('btn-stand'),
   scoreButton: el('btn-score'),
   standStatus: el('stand-status'),
@@ -504,6 +506,14 @@ function bindSettingsControls() {
     saveSettings();
   });
 
+  const showStandCard = el('set-showStandCard');
+  showStandCard.checked = Boolean(settings.showStandCard);
+  showStandCard.addEventListener('change', () => {
+    settings.showStandCard = showStandCard.checked;
+    renderStandPanel();
+    saveSettings();
+  });
+
   const audioProfile = el('set-audioProfile');
   audioProfile.value = settings.audioProfile;
   audioProfile.addEventListener('change', () => {
@@ -592,9 +602,14 @@ async function loadLibrary() {
     const response = await fetch('/api/library');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
+    // Le morceau en cours est retenu par son identifiant, pas par sa place :
+    // une demande arrivée en tête de liste décale tous les index d'un cran,
+    // et c'est un autre titre que les téléphones verraient jouer.
+    const current = library[currentIndex]?.id ?? player?.track?.id ?? null;
     library = data.tracks;
     categories = data.categories ?? [];
     localSamples = Boolean(data.localSamples);
+    currentIndex = current ? library.findIndex((item) => item.id === current) : -1;
     playlist.setTracks(library);
     restoreCollapsed();
     applyFilter();
@@ -712,9 +727,6 @@ async function removeTrack(track) {
   if (player?.track?.id === track.id) clearNowPlaying();
 
   await loadLibrary();
-  // La bibliothèque a changé de taille : l'index du morceau en cours aussi.
-  currentIndex = player?.track ? library.findIndex((item) => item.id === player.track.id) : -1;
-  renderList();
   logLine(dom.log, `Morceau supprimé : ${label}.`, 'warn');
   toast(`« ${track.title} » supprimé.`, 'success');
 }
@@ -1160,7 +1172,14 @@ async function playNext(auto = false) {
 
   const entry = await stand.takeNext();
   if (entry) {
-    const index = library.findIndex((track) => track.id === entry.id);
+    let index = library.findIndex((track) => track.id === entry.id);
+    // La partition d'une demande a pu être écrite par un autre jukebox, ou
+    // l'extrait déposé après le dernier inventaire : la bibliothèque de cet
+    // onglet date d'avant, et jouerait l'audio seul.
+    if (index < 0 || (library[index].audioUrl && !library[index].midiUrl)) {
+      await loadLibrary();
+      index = library.findIndex((track) => track.id === entry.id);
+    }
     if (index >= 0) {
       await selectTrack(index, true, entry.name ?? null);
       return;
@@ -1518,13 +1537,70 @@ async function submitLink(event) {
   }
 }
 
+/**
+ * Un seul onglet du jukebox à la fois par navigateur.
+ *
+ * Deux onglets ouverts sur la même page se disputeraient tout : la liaison
+ * Bluetooth (chacun rattrape le hub connu au chargement et pilote le moteur),
+ * la transcription des demandes (le même extrait calculé deux fois) et ce
+ * que voient les téléphones. Le premier onglet garde la main ; les suivants
+ * restent passifs sur ces trois points, et la reprennent si le premier ferme.
+ * Le verrou Web Locks se libère tout seul avec l'onglet, même en cas de plantage.
+ */
+const tab = { passive: false };
+
+/** Rattrape le hub déjà autorisé, sans passer par le sélecteur du navigateur. */
+function reconnectKnownHub() {
+  if (PianoHub.isSupported() && settings.autoReconnect) hub.connectKnownDevice().catch(() => {});
+}
+
+/** Résout avec `true` si cet onglet dirige, `false` s'il attend son tour. */
+function claimTab() {
+  if (typeof navigator.locks?.request !== 'function') return Promise.resolve(true);
+  const name = 'lego-piano-jukebox/jukebox';
+  const hold = () => new Promise(() => {}); // tenu jusqu'à la fermeture de l'onglet
+  return new Promise((resolve) => {
+    navigator.locks
+      .request(name, { ifAvailable: true }, (lock) => {
+        if (lock) {
+          resolve(true);
+          return hold();
+        }
+        tab.passive = true;
+        resolve(false);
+        logLine(dom.log, 'Le jukebox est déjà ouvert dans un autre onglet : celui-ci reste passif (pas de reconnexion Bluetooth ni de transcription).', 'warn');
+        toast('Le jukebox est déjà ouvert dans un autre onglet. Ferme l’un des deux : le piano et les téléphones ne peuvent en suivre qu’un.', 'info', 10000);
+        // On fait la queue : le verrou nous revient quand l'autre onglet part.
+        return navigator.locks.request(name, () => {
+          tab.passive = false;
+          logLine(dom.log, 'L’autre onglet du jukebox est fermé : celui-ci prend la main.', 'success');
+          reconnectKnownHub();
+          requests.pump();
+          return hold();
+        });
+      })
+      .catch(() => resolve(true));
+  });
+}
+
 function wireStand() {
   stand.addEventListener('queue', () => {
     renderStandPanel();
-    // Une demande vient d'arriver : on transcrit sans attendre son tour.
-    requests.pump();
+    // Une demande vient d'arriver : on transcrit sans attendre son tour —
+    // sauf si un autre onglet s'en charge déjà.
+    if (!tab.passive) requests.pump();
   });
   stand.addEventListener('cheer', (event) => onCheer(event.detail.total));
+  // Le serveur suit un autre jukebox — un second onglet, un autre appareil :
+  // ce que joue cette page n'atteint pas les téléphones tant qu'il publie.
+  stand.addEventListener('conductor', (event) => {
+    if (event.detail.conductor) {
+      logLine(dom.log, 'Les téléphones suivent à nouveau ce jukebox.', 'success');
+      return;
+    }
+    logLine(dom.log, 'Un autre jukebox publie déjà ce qui joue : les téléphones suivent celui-là.', 'warn');
+    toast('Un autre onglet ou appareil du jukebox est déjà ouvert : les téléphones suivent celui-là.', 'info', 8000);
+  });
   // Le serveur a redémarré, ou changé d'adresse : le code QR affiché doit suivre.
   stand.addEventListener('identity', () => {
     delete dom.qr.dataset.url;
@@ -1539,7 +1615,83 @@ function wireStand() {
     if (stand.available) logLine(dom.log, `Télécommande des visiteurs : ${stand.remoteUrl}`, 'success');
   });
   dom.queueClear.addEventListener('click', () => stand.drop('*'));
+  // Fermer la carte, c'est décocher le réglage : elle ne reviendra pas toute
+  // seule à la prochaine demande, et le tiroir dit où la rouvrir.
+  dom.standClose.addEventListener('click', () => {
+    settings.showStandCard = false;
+    el('set-showStandCard').checked = false;
+    renderStandPanel();
+    saveSettings();
+    toast('Carte du code QR fermée — à rouvrir depuis les réglages.', 'info', 5000);
+  });
+  wireStandDrag();
   stand.init();
+}
+
+/**
+ * Déplacement de la carte à la souris ou au doigt.
+ *
+ * Seul le thème moderne la fait flotter sur la scène ; ailleurs elle est
+ * dans le flux et n'a rien à déplacer. On le vérifie au moment du geste, sur
+ * la position calculée, plutôt que de recopier ici la liste des thèmes.
+ * La position est posée en `left`/`top` par rapport à la scène, et bornée à
+ * celle-ci : la carte ne peut pas sortir de l'écran, ni se retrouver sous un
+ * bord où l'on ne pourrait plus la rattraper.
+ */
+function wireStandDrag() {
+  const panel = dom.standPanel;
+  const handle = dom.standCall;
+  let drag = null;
+
+  const bounds = () => {
+    const stage = panel.offsetParent;
+    if (!stage) return null;
+    return {
+      maxLeft: Math.max(0, stage.clientWidth - panel.offsetWidth),
+      maxTop: Math.max(0, stage.clientHeight - panel.offsetHeight),
+    };
+  };
+  const place = (left, top) => {
+    const box = bounds();
+    if (!box) return;
+    panel.style.left = `${Math.round(Math.min(Math.max(0, left), box.maxLeft))}px`;
+    panel.style.top = `${Math.round(Math.min(Math.max(0, top), box.maxTop))}px`;
+    panel.style.bottom = 'auto';
+  };
+
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 && event.pointerType === 'mouse') return;
+    if (event.target.closest('button, a, input')) return;
+    if (getComputedStyle(panel).position !== 'absolute') return;
+    drag = {
+      pointerId: event.pointerId,
+      dx: event.clientX - panel.offsetLeft,
+      dy: event.clientY - panel.offsetTop,
+    };
+    panel.classList.add('dragging');
+    handle.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  handle.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    place(event.clientX - drag.dx, event.clientY - drag.dy);
+  });
+  const stop = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    drag = null;
+    panel.classList.remove('dragging');
+  };
+  handle.addEventListener('pointerup', stop);
+  handle.addEventListener('pointercancel', stop);
+
+  // La fenêtre change de taille : on ramène la carte dans la scène si besoin.
+  window.addEventListener('resize', () => {
+    if (panel.style.left) place(panel.offsetLeft, panel.offsetTop);
+  });
+  // Un autre thème remet la carte dans le flux : la position posée n'a plus de sens.
+  document.addEventListener('jukebox:themechange', () => {
+    panel.style.left = panel.style.top = panel.style.bottom = '';
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1592,6 +1744,9 @@ function wireSecondHub() {
   secondHub.addEventListener('log', (event) =>
     logLine(dom.log, `2ᵉ piano — ${event.detail.message}`, event.detail.level)
   );
+  secondHub.addEventListener('sessionend', (event) => {
+    if (player?.isPlaying || warmup.active) event.preventDefault();
+  });
 
   connectButton.addEventListener('click', async () => {
     if (!PianoHub.isSupported()) return;
@@ -1963,6 +2118,7 @@ function syncVenueControls() {
   el('set-audioProfile').value = settings.audioProfile;
   el('set-handTrigger').checked = Boolean(settings.handTrigger);
   el('set-attractTop').checked = Boolean(settings.attractTop);
+  el('set-showStandCard').checked = Boolean(settings.showStandCard);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2424,27 +2580,79 @@ function frame(now) {
 /* Bluetooth                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Le bouton de la barre suit la liaison : il connecte, puis déconnecte, et
+ * pendant une reconnexion il permet d'y renoncer. `data-action` dit ce qu'un
+ * clic fera — le libellé seul serait ambigu entre « Connecté » et « Déconnecter ».
+ */
+function renderConnectButton(status) {
+  const button = dom.connect;
+  if (status === 'connected') {
+    button.textContent = 'Déconnecter';
+    button.dataset.action = 'disconnect';
+    button.disabled = false;
+  } else if (status === 'connecting') {
+    button.textContent = 'Connexion…';
+    button.dataset.action = 'none';
+    button.disabled = true;
+  } else if (status === 'reconnecting') {
+    button.textContent = 'Abandonner';
+    button.dataset.action = 'disconnect';
+    button.disabled = false;
+  } else {
+    button.textContent = 'Connecter le piano';
+    button.dataset.action = 'connect';
+    button.disabled = !PianoHub.isSupported();
+  }
+}
+
+/** L'infobulle de la pastille dit combien de temps la session a encore devant elle. */
+function renderSession() {
+  const remaining = hub.sessionRemaining;
+  if (hub.sessionStartedAt === null) {
+    dom.hubPill.removeAttribute('title');
+    return;
+  }
+  dom.hubPill.title =
+    remaining === null
+      ? 'Session sans limite de durée — « Déconnecter » pour y mettre fin.'
+      : `Session : encore ${formatMinutes(Math.ceil(remaining / 60000))}, puis la liaison se coupe d’elle-même.`;
+}
+
 function wireHub() {
   hub.addEventListener('status', (event) => {
     const { status, name, attempt } = event.detail;
     dom.hubPill.dataset.state = status;
+    renderConnectButton(status);
     if (status === 'connected') {
       dom.hubLabel.textContent = hub.info.name ?? name ?? 'Piano connecté';
-      dom.connect.textContent = 'Connecté';
-      dom.connect.disabled = true;
     } else if (status === 'connecting') {
       dom.hubLabel.textContent = 'Connexion…';
-      dom.connect.disabled = true;
     } else if (status === 'reconnecting') {
       dom.hubLabel.textContent = `Reconnexion… (${attempt})`;
-      dom.connect.disabled = true;
     } else {
       dom.hubLabel.textContent = 'Piano déconnecté';
       dom.hubBattery.hidden = true;
-      dom.connect.textContent = 'Connecter le piano';
-      dom.connect.disabled = false;
     }
+    renderSession();
   });
+
+  hub.addEventListener('session', (event) => {
+    renderSession();
+    if (event.detail.phase !== 'expired') return;
+    const minutes = Math.round((Date.now() - event.detail.startedAt) / 60000);
+    toast(
+      `Session Bluetooth terminée après ${formatMinutes(minutes)} : le piano est déconnecté pour ménager ses piles. « Connecter le piano » pour reprendre.`,
+      'info',
+      10000
+    );
+  });
+  // La session échoit pendant un morceau : on le laisse finir, le hub
+  // redemandera dans une demi-minute.
+  hub.addEventListener('sessionend', (event) => {
+    if (player?.isPlaying || warmup.active) event.preventDefault();
+  });
+  setInterval(renderSession, 60000);
 
   hub.addEventListener('info', () => {
     if (hub.connected && hub.info.name) dom.hubLabel.textContent = hub.info.name;
@@ -2501,7 +2709,10 @@ function openDrawer(open) {
 }
 
 function wireUi() {
-  dom.connect.addEventListener('click', connectHub);
+  dom.connect.addEventListener('click', () => {
+    if (dom.connect.dataset.action === 'disconnect') hub.disconnect();
+    else if (dom.connect.dataset.action === 'connect') connectHub();
+  });
 
   dom.play.addEventListener('click', togglePlay);
   dom.next.addEventListener('click', () => playNext());
@@ -2704,6 +2915,13 @@ function boot() {
       if (player?.isPlaying) player.pause();
       driver?.stop();
     },
+    // Les deux pianos vivent la même session : un duo qu'on oublie vide deux
+    // jeux de piles au lieu d'un.
+    onSessionChange: (ms) => {
+      hub.setSessionDuration(ms);
+      secondHub.setSessionDuration(ms);
+      renderSession();
+    },
   });
   initConverter({ onSaved: loadLibrary });
   loadLibrary();
@@ -2727,10 +2945,11 @@ function boot() {
   }
 
   // Si le navigateur garde l'autorisation d'un hub déjà utilisé, on retrouve la
-  // liaison sans repasser par le sélecteur.
-  if (PianoHub.isSupported() && settings.autoReconnect) {
-    hub.connectKnownDevice().catch(() => {});
-  }
+  // liaison sans repasser par le sélecteur — à moins qu'un autre onglet ne
+  // la tienne déjà.
+  claimTab().then((active) => {
+    if (active) reconnectKnownHub();
+  });
 }
 
 boot();

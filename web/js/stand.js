@@ -43,6 +43,18 @@ export class Stand extends EventTarget {
     this.requested = 0;
     this.cheers = 0;
 
+    /**
+     * Identifiant de cette page, tiré au hasard à chaque chargement. Le serveur
+     * s'en sert pour ne suivre qu'un seul jukebox à la fois : voir `conductor`.
+     */
+    this.session = `j${Math.random().toString(36).slice(2, 10)}`;
+    /**
+     * Vrai tant que le serveur relaie nos publications aux téléphones. Faux
+     * quand un autre jukebox — un second onglet, un autre appareil — publie
+     * déjà : les visiteurs suivent celui-là, pas cette page.
+     */
+    this.conductor = true;
+
     this._source = null;
     this._lastPublish = 0;
     this._nowSignature = '';
@@ -213,10 +225,19 @@ export class Stand extends EventTarget {
     fetch('/api/stand/now', {
       method: 'POST',
       headers: this._controlHeaders,
-      body: JSON.stringify({ now }),
+      body: JSON.stringify({ now, source: this.session }),
       // La page peut se fermer pendant l'envoi : ce n'est pas une erreur.
       keepalive: true,
-    }).catch(() => {});
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        // Un serveur d'une version antérieure ne se prononce pas : on dirige.
+        const conductor = data?.conductor !== false;
+        if (conductor === this.conductor) return;
+        this.conductor = conductor;
+        this.dispatchEvent(new CustomEvent('conductor', { detail: { conductor } }));
+      })
+      .catch(() => {});
   }
 
   /**

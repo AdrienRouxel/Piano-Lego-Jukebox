@@ -92,7 +92,11 @@ export class RequestPipeline extends EventTarget {
    */
   waitFor(key) {
     const known = this._results.get(key);
-    if (known) return Promise.resolve(known);
+    if (known?.ok) return Promise.resolve(known);
+    // Un échec ici n'est pas forcément un échec partout : un autre poste — un
+    // second onglet du jukebox — a pu écrire la partition entre-temps. On
+    // regarde la bibliothèque avant de renoncer.
+    if (known) return this._recheck(key, known);
 
     const waiting = new Promise((resolve) => {
       const listeners = this._waiters.get(key) ?? [];
@@ -107,6 +111,21 @@ export class RequestPipeline extends EventTarget {
     this._results.set(key, result);
     for (const resolve of this._waiters.get(key) ?? []) resolve(result);
     this._waiters.delete(key);
+  }
+
+  /**
+   * La partition d'une demande est-elle finalement sur le disque ? Relit la
+   * bibliothèque et, si oui, remplace l'échec mémorisé par un succès.
+   */
+  async _recheck(key, fallback) {
+    const entry = this.stand.queue.find((item) => item.key === key);
+    if (!entry) return fallback;
+    await this.reloadLibrary();
+    const track = this.getLibrary().find((item) => item.id === entry.id);
+    if (!track?.midiUrl) return fallback;
+    const result = { ok: true, status: 'ready' };
+    this._results.set(key, result);
+    return result;
   }
 
   /**
@@ -126,8 +145,10 @@ export class RequestPipeline extends EventTarget {
     try {
       result = await this._process(pending);
     } catch (error) {
-      result = { ok: false, status: 'failed', message: error.message };
-      this._say('failed', { message: error.message });
+      // Le moteur du serveur était pris, ou l'extrait illisible d'ici : si un
+      // autre jukebox a déposé la partition pendant ce temps, elle nous va.
+      result = await this._recheck(pending.key, { ok: false, status: 'failed', message: error.message });
+      if (!result.ok) this._say('failed', { message: error.message });
     } finally {
       this._done.add(pending.key);
       this._settle(pending.key, result);

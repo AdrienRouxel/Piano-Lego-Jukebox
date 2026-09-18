@@ -74,7 +74,15 @@ export function readLink(input) {
     return { provider: 'apple', id: fromQuery ?? fromPath, url: url.href };
   }
 
-  if (host === 'deezer.com' || host === 'dzr.page.link') {
+  // Deezer — « /fr/track/<id> » aussi bien que « /track/<id> ». Les liens de
+  // partage (« link.deezer.com/s/… ») ne portent pas l'identifiant : il
+  // n'apparaît qu'au bout des redirections, on le retrouve plus tard.
+  if (
+    host === 'deezer.com' ||
+    host === 'link.deezer.com' ||
+    host === 'deezer.page.link' ||
+    host === 'dzr.page.link'
+  ) {
     const match = /\/track\/(\d+)/.exec(url.pathname);
     return { provider: 'deezer', id: match?.[1] ?? null, url: url.href };
   }
@@ -91,6 +99,20 @@ async function getJson(url) {
     });
     if (!response.ok) return null;
     return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Suit les redirections d'un lien court et rend l'adresse d'arrivée, ou `null`. */
+async function followLink(url) {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: { 'user-agent': USER_AGENT },
+      signal: AbortSignal.timeout(LOOKUP_TIMEOUT),
+    });
+    return response.url || null;
   } catch {
     return null;
   }
@@ -182,8 +204,13 @@ async function describeApple(link) {
 
 /** Deezer publie une API ouverte, extrait compris. */
 async function describeDeezer(link) {
-  if (!link.id) return null;
-  const data = await getJson(`https://api.deezer.com/track/${encodeURIComponent(link.id)}`);
+  let id = link.id;
+  if (!id) {
+    const landed = await followLink(link.url);
+    id = landed ? readLink(landed)?.id ?? null : null;
+  }
+  if (!id) return null;
+  const data = await getJson(`https://api.deezer.com/track/${encodeURIComponent(id)}`);
   if (!data?.title) return null;
   return {
     title: data.title,
