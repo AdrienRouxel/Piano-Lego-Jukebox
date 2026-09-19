@@ -179,6 +179,10 @@ export class Stand extends EventTarget {
 
   /**
    * Retire la première demande de la file et la renvoie.
+   *
+   * Le serveur ne la cède qu'au jukebox que suivent les téléphones : si un
+   * autre poste dirige, on revient bredouille et `conductor` passe à faux.
+   *
    * @returns {Promise<{id:string, title:string, name:string|null}|null>}
    */
   async takeNext() {
@@ -187,15 +191,23 @@ export class Stand extends EventTarget {
       const response = await fetch('/api/stand/queue/next', {
         method: 'POST',
         headers: this._controlHeaders,
-        body: '{}',
+        body: JSON.stringify({ source: this.session }),
       });
+      const data = await response.json().catch(() => null);
+      if (data?.queue) this._absorb(data);
+      if (response.status === 409) this._setConductor(false);
       if (!response.ok) return null;
-      const data = await response.json();
-      this._absorb(data);
-      return data.entry ?? null;
+      return data?.entry ?? null;
     } catch {
       return null;
     }
+  }
+
+  /** Note qui dirige, et ne prévient que lorsque cela change. */
+  _setConductor(conductor) {
+    if (conductor === this.conductor) return;
+    this.conductor = conductor;
+    this.dispatchEvent(new CustomEvent('conductor', { detail: { conductor } }));
   }
 
   /** Retire une demande, ou toute la file avec la clé `*`. */
@@ -232,10 +244,7 @@ export class Stand extends EventTarget {
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         // Un serveur d'une version antérieure ne se prononce pas : on dirige.
-        const conductor = data?.conductor !== false;
-        if (conductor === this.conductor) return;
-        this.conductor = conductor;
-        this.dispatchEvent(new CustomEvent('conductor', { detail: { conductor } }));
+        this._setConductor(data?.conductor !== false);
       })
       .catch(() => {});
   }

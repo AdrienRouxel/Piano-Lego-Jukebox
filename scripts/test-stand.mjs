@@ -143,6 +143,36 @@ try {
   assert.equal((await state()).queue.some((entry) => entry.id === id), false);
 
   console.log('✓ Stand : le dépôt de la partition lève le drapeau de transcription');
+
+  /* --- La file revient au jukebox qui dirige --------------------------- */
+
+  const { tracks } = (await json('/api/library', undefined, 'GET')).data;
+  assert.ok(tracks.length, 'la bibliothèque de test est vide');
+  const wanted = tracks[0].id;
+
+  ({ data } = await publish('A', playing('Piano/Un')));
+  assert.equal(data.conductor, true);
+  ({ data } = await json('/api/stand/queue', { id: wanted, code, by: 'test' }));
+  assert.equal(data.entry?.id, wanted);
+
+  let next = await json('/api/stand/queue/next', { source: 'B' });
+  assert.equal(next.status, 409, 'un poste qui ne dirige pas ne prend rien');
+  assert.equal(next.data.conductor, false);
+  assert.equal(next.data.queue.length, 1, 'la demande reste en file');
+
+  next = await json('/api/stand/queue/next', { source: 'A' });
+  assert.equal(next.status, 200);
+  assert.equal(next.data.entry?.id, wanted, 'le poste qui dirige la reçoit');
+  assert.equal((await state()).queue.length, 0);
+
+  ({ data } = await publish('A', null)); // A se retire : la place est libre
+  ({ data } = await json('/api/stand/queue', { id: wanted, code, by: 'test' }));
+  assert.equal(data.entry?.id, wanted);
+  next = await json('/api/stand/queue/next', { source: 'B' });
+  assert.equal(next.status, 200, 'personne ne dirige : le premier venu sert');
+  assert.equal(next.data.entry?.id, wanted);
+
+  console.log('✓ Stand : la file revient au jukebox que suivent les téléphones');
 } finally {
   server.kill();
   for (const ext of ['.mp3', '.mid']) await fsp.rm(path.join(REQUESTS_DIR, TEST_NAME + ext), { force: true });

@@ -1166,6 +1166,24 @@ async function handleStandPost(req, res, pathname, url) {
   }
 
   if (pathname === '/api/stand/queue/next') {
+    /*
+     * La file revient au jukebox que suivent les téléphones. Deux pages
+     * ouvertes sur deux postes — l'ordinateur du stand et un portable resté
+     * ouvert ailleurs — finissent chacune leurs morceaux à leur rythme, et
+     * c'est celle qui finit la première qui emporterait la demande : le
+     * visiteur l'entendrait sur le mauvais haut-parleur, ou pas du tout,
+     * pendant que le stand enchaîne sur sa bibliothèque.
+     */
+    const source = String(body.source ?? '').slice(0, 40);
+    const holder = stand.conductor;
+    if (holder && holder.id !== source && Date.now() - holder.at < CONDUCTOR_TTL) {
+      sendJson(res, 409, {
+        error: 'Un autre jukebox dirige le stand : la file lui revient.',
+        conductor: false,
+        ...standState(),
+      });
+      return;
+    }
     const entry = stand.queue.shift() ?? null;
     if (entry) broadcastState();
     sendJson(res, 200, { entry, ...standState() });

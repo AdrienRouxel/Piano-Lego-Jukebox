@@ -215,7 +215,9 @@ const requests = new RequestPipeline({
   getLibrary: () => library,
   reloadLibrary: () => loadLibrary(),
 });
-/** Prénom de qui a demandé le morceau en cours, s'il en a laissé un. */
+/** Le morceau en cours vient-il de la file des visiteurs ? */
+let requested = false;
+/** Prénom de qui l'a demandé, s'il en a laissé un. */
 let requestedBy = null;
 /** Instant du dernier silence constaté, pour la reprise automatique. */
 let silentSince = 0;
@@ -769,6 +771,7 @@ async function removeQueuedRequest(entry) {
 function clearNowPlaying() {
   player?.unload();
   currentIndex = -1;
+  requested = false;
   requestedBy = null;
   dom.nowState.textContent = 'Prêt';
   dom.nowTitle.textContent = 'Choisis un morceau';
@@ -934,9 +937,11 @@ async function ensureAudio() {
  *
  * @param {number} index position dans la bibliothèque
  * @param {boolean} autoplay lancer la lecture dans la foulée
- * @param {string|null} by prénom du visiteur qui l'a demandé, s'il y en a un
+ * @param {{name:string|null}|null} request la demande de la file dont il
+ *   vient, ou `null` s'il a été choisi ici. Un visiteur peut ne pas laisser
+ *   de prénom : la demande compte quand même.
  */
-async function selectTrack(index, autoplay = false, by = requestedBy) {
+async function selectTrack(index, autoplay = false, request = null) {
   if (index < 0 || index >= library.length) return;
   let track = library[index];
 
@@ -957,7 +962,8 @@ async function selectTrack(index, autoplay = false, by = requestedBy) {
     track = library[index];
   }
 
-  requestedBy = by;
+  requested = Boolean(request);
+  requestedBy = request?.name ?? null;
   // Changer de morceau interrompt la mise en route en cours : le chef
   // recommencera sa scène pour celui qu'on vient de choisir.
   warmup.cancel();
@@ -1106,7 +1112,7 @@ function onPlaybackStarted() {
       title: track.title,
       artist: track.artist,
       at: Date.now(),
-      requested: Boolean(requestedBy),
+      requested,
     });
     renderTally();
   }
@@ -1153,10 +1159,15 @@ async function playNext(auto = false) {
     return;
   }
 
+  // La file revient au jukebox que suivent les téléphones. Si un autre poste
+  // dirige — un portable resté ouvert sur la page —, on ne lui dispute pas
+  // les demandes : on enchaîne sur la bibliothèque, et lui les jouera. Le
+  // serveur le vérifie aussi de son côté (voir `takeNext`).
+  const waiting = stand.conductor ? stand.queue[0] : null;
+
   // Une demande venant d'un lien ne quitte la file que lorsque son fichier
   // MIDI existe. Sans cette barrière, un clic très rapide sur « suivant » peut
   // gagner la course contre la transcription et lancer l'audio sans notes.
-  const waiting = stand.queue[0];
   if (waiting?.transcribe) {
     dom.nowState.textContent = `Transcription de « ${waiting.title} »…`;
     const result = await requests.waitFor(waiting.key);
@@ -1170,7 +1181,7 @@ async function playNext(auto = false) {
     }
   }
 
-  const entry = await stand.takeNext();
+  const entry = waiting ? await stand.takeNext() : null;
   if (entry) {
     let index = library.findIndex((track) => track.id === entry.id);
     // La partition d'une demande a pu être écrite par un autre jukebox, ou
@@ -1181,7 +1192,7 @@ async function playNext(auto = false) {
       index = library.findIndex((track) => track.id === entry.id);
     }
     if (index >= 0) {
-      await selectTrack(index, true, entry.name ?? null);
+      await selectTrack(index, true, { name: entry.name ?? null });
       return;
     }
     // Le morceau a disparu du dossier entre-temps : on passe au suivant.
@@ -1227,7 +1238,7 @@ function publishNow(force = false) {
           state: player?.isPlaying ? 'playing' : 'paused',
           position: player?.currentTime ?? 0,
           duration: player?.duration ?? 0,
-          requested: Boolean(requestedBy),
+          requested,
           name: settings.showNames ? requestedBy : null,
         }
       : rest
@@ -1587,8 +1598,10 @@ function wireStand() {
   stand.addEventListener('queue', () => {
     renderStandPanel();
     // Une demande vient d'arriver : on transcrit sans attendre son tour —
-    // sauf si un autre onglet s'en charge déjà.
-    if (!tab.passive) requests.pump();
+    // sauf si un autre onglet s'en charge déjà, ou si un autre jukebox
+    // dirige le stand : c'est lui qui la jouera, et le moteur du serveur n'a
+    // pas à calculer deux fois la même partition.
+    if (!tab.passive && stand.conductor) requests.pump();
   });
   stand.addEventListener('cheer', (event) => onCheer(event.detail.total));
   // Le serveur suit un autre jukebox — un second onglet, un autre appareil :
@@ -1596,6 +1609,8 @@ function wireStand() {
   stand.addEventListener('conductor', (event) => {
     if (event.detail.conductor) {
       logLine(dom.log, 'Les téléphones suivent à nouveau ce jukebox.', 'success');
+      // La file nous revient : les demandes en attente sont à transcrire ici.
+      if (!tab.passive) requests.pump();
       return;
     }
     logLine(dom.log, 'Un autre jukebox publie déjà ce qui joue : les téléphones suivent celui-là.', 'warn');
